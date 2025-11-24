@@ -1,6 +1,6 @@
 Matthew Ard 
-Energy 223 - Phase II
-04/25/2025
+Energy 224 - Flow Based Upscaling Reservior Simulator
+11/23/2025
 
 To run this code you only need to use 'config.py' and 'main.py'.
 
