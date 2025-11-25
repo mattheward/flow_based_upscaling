@@ -12,8 +12,8 @@ This file is for the user to input the parameters
 import numpy as np
 
 class Field: # Reservoir parameters
-    Lx = 3900 # [ft]
-    Ly = 3900 # [ft]
+    Lx = 5000 # [ft]
+    Ly = 5000 # [ft]
     Lz = 130 # [ft]
     D_top = 5000 # [ft]
     D_bot = 5140 # [ft]
@@ -35,17 +35,17 @@ class Fluid: # Fluid properties
 class Grid: # Simulation grid properties
     
     # Set the boundary condition
-    Boundary_Condition = 1 # 0 = no flux B.C., 1 = Const Pressure B.C.
+    Boundary_Condition = 0 # 0 = no flux B.C., 1 = Const Pressure B.C.
 
     # number of cells in x-direction
-    NX = 39 
-    NY = 39 
+    NX = 50 
+    NY = 50 
     NZ = 1 
 
     # Well properties. In a list to add multiple wells
-    well_x = np.array([13, 26])
-    well_y = np.array([13, 26])
-    well_rate = np.array([900, 350]) # [STB/day]
+    well_x = np.array([0])
+    well_y = np.array([0])
+    well_rate = np.array([900]) # [STB/day]
 
     '''
     DO NOT CHANGE THESE VALUES
@@ -67,3 +67,8 @@ class Simulation: # Simulation perameters
     number_of_steps = 80 # [days]
     stop_injection = False # Set to 'True' if you want the injection to stop
     stop_time = 400 # [days] (Set day when injection stops)
+
+class Upscaling: # Upscaling parameters
+
+    NCy = 10
+    NCx = 10

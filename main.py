@@ -20,6 +20,7 @@ from config import Grid, Field, Simulation
 import connections as Con
 import matrix as M
 import calculations as Calc
+import upscaling as Up
 
 def main():
 
@@ -48,8 +49,18 @@ def main():
     b_vector = M.RHS_Vector(accumulation, p0, q0)
     a_matrix = M.Form_A_Matrix(connections_x, connections_y, p0, total_cells, accumulation, delta_vals)
 
-    # Solve for pressures using sparse solver
-    p_new = spla.spsolve(a_matrix, b_vector)
+    # Attempt to build an ILU preconditioner once and reuse it for time steps.
+    # This avoids a full sparse LU factorization each timestep and speeds up repeated solves.
+    try:
+        ilu = spla.spilu(a_matrix.tocsc())
+        M_x = spla.LinearOperator(a_matrix.shape, ilu.solve)
+        p_new, info = spla.gmres(a_matrix, b_vector, M=M_x, atol=1e-10)
+        if info != 0:
+            # GMRES did not converge; fall back to direct solve
+            p_new = spla.spsolve(a_matrix, b_vector)
+    except Exception:
+        # If ILU/preconditioner construction fails (very small grids or singular), use direct solver
+        p_new = spla.spsolve(a_matrix, b_vector)
 
     # If constant pressure boundary condition is true then this will add a ring with constant pressure
     if Grid.Boundary_Condition == 1:
@@ -80,7 +91,13 @@ def main():
         p_n = p_new # Defines previous future pressure as current pressure
         b_vector = M.RHS_Vector(accumulation, p_n, q0) # Recalculates b vector
         a_matrix = M.Form_A_Matrix(connections_x, connections_y, p_n, total_cells, accumulation, delta_vals) # Recalculates a matrix
-        p_new = spla.spsolve(a_matrix, b_vector) # Finds new pressure vector (1D)
+        # Try iterative solve with the preconditioner first (reuse `ilu` if available)
+        try:
+            p_new, info = spla.gmres(a_matrix, b_vector, M=M_x, atol=1e-10)
+            if info != 0:
+                p_new = spla.spsolve(a_matrix, b_vector)
+        except Exception:
+            p_new = spla.spsolve(a_matrix, b_vector)
 
         for w in range(len(Grid.well_x)):
             WBHP_vals[w].append(p_new[well_location[w]-1])
@@ -110,6 +127,10 @@ def main():
     stop_time = time.time() # Captures stop time
     elapsed_time = stop_time - start_time # Finds time taken to run
     print(f"Elapsed time: {elapsed_time:.2f} seconds") # Prints time taken to run
+
+    coarse_map = Up.create_upscaled_grid()
+    Up.plot_coarse_grid(coarse_map)
+
 
     # # Creates plot for pressure at bottom of well(s)
     # plt.figure() 
