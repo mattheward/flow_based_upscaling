@@ -52,9 +52,9 @@ def Get_Transmissibility_Values(a_matrix, i, p_n_vector, cell_number, direction,
 
         # Finds transmissibility for each direction
         if direction == 'x':
-            transmissibility = Calc.Transmissibility_Calc(b_int, delta_vals, direction)
+            transmissibility = Calc.Transmissibility_Calc(delta_vals, direction, b_int)
         else:
-            transmissibility = Calc.Transmissibility_Calc(b_int, delta_vals, direction)
+            transmissibility = Calc.Transmissibility_Calc(delta_vals, direction, b_int)
 
         t_values.append(transmissibility) # Adds to list storing transmissibility values
         a_matrix[i - 1, cell_number-1] = transmissibility # Puts transmissibility value in A matrix (works for LIL)

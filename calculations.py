@@ -56,7 +56,7 @@ def Accumulation(Cell_Volume, delta_t):
 
 
 # Calculates transissibility for the off-diagonal values
-def Transmissibility_Calc(b_int, delta_vals, direction):
+def Transmissibility_Calc(delta_vals, direction, b_int=1.0):
 
     # Checks which direction the cells interface each other to use correct equation
     if direction == 'x':
