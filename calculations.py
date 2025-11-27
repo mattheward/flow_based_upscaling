@@ -10,6 +10,7 @@ This file runs all the numerical calculations used in the other files.
 
 # Packages
 import numpy as np
+import math
 
 # Files
 from config import Grid, Field, Fluid, Rock, Simulation
@@ -49,22 +50,38 @@ def B_Interface_Calc(B1, B2):
     return (B1 + B2) / 2 # [-]
 
 
+def well_transmissibility(delta_values, perm_field, well_index):
+
+    r_o = 0.208 * delta_values[0]
+    r_w = Grid.WELL_RADIUS
+    s = 0
+    k_avg = math.sqrt(perm_field['x'][well_index - 1] * perm_field['y'][well_index - 1])
+
+    return (2 * np.pi * k_avg * delta_values[2] / Fluid.VISCOSITY) * (1 / (np.log(r_o/r_w) + s))
+
+
 # Calculates the accumulation number
 def Accumulation(Cell_Volume, delta_t):
 
     return (Cell_Volume * Rock.porosity * Fluid.c_f)/(5.615 * delta_t) # [ft^3/psi/day]
 
 
+def permeability_average(k1, k2):
+
+    return (2 * k1 * k2) / (k1 + k2)
+
+
 # Calculates transissibility for the off-diagonal values
-def Transmissibility_Calc(delta_vals, direction, b_int=1.0):
+def Transmissibility_Calc(delta_vals, direction, k_int, b_int=1.0):
 
     # Checks which direction the cells interface each other to use correct equation
     if direction == 'x':
-        T = (1 / (b_int * Fluid.viscosity)) * ((delta_vals[1] * delta_vals[2] * Rock.k_x) / delta_vals[0]) / 887.5 # [ft^2/psi/day]
+        T = (1 / (b_int * Fluid.viscosity)) * ((delta_vals[1] * delta_vals[2] * k_int) / delta_vals[0]) / 887.5 # [ft^2/psi/day]
     else:
-        T = (1 / (b_int * Fluid.viscosity)) * ((delta_vals[0] * delta_vals[2] * Rock.k_y) / delta_vals[1]) / 887.5 # [ft^2/psi/day]
+        T = (1 / (b_int * Fluid.viscosity)) * ((delta_vals[0] * delta_vals[2] * k_int) / delta_vals[1]) / 887.5 # [ft^2/psi/day]
 
     return float(T) # [ft^2/psi/day]
+
 
 # Calculates transmissibility of the diagonals using transmissbility values calculated before (inputed as a list)
 def Diag_Transmissibility_Calc(t_values, Accumulation):

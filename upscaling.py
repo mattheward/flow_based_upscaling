@@ -11,8 +11,6 @@ This code contains the logic for the flow based upscaling.
 # Import Packages
 import matplotlib.pyplot as plt
 import numpy as np
-import os
-import pickle
 
 # Import Files
 from config import Grid, Upscaling
@@ -139,59 +137,35 @@ def upscaled_connections():
     return connections_x, connections_y
 
 
-def solve_local_problems(coarse_grid_map, connections_x, connections_y, delta_vals, cache_path=None, force_recompute=False):
-    """
-    Compute upscaled transmissibilities for each coarse interface.
+# def coarse_well_locations(coarse_grid_map):
 
-    Parameters:
-    - coarse_grid_map, connections_x, connections_y, delta_vals: as before
-    - cache_path: optional path to a pickle file to load/save the transmissibility dict
-    - force_recompute: if True, ignore any existing cache and recompute
 
-    Returns: dict mapping (i, j) tuples to upscaled transmissibility values
-    """
-
-    # Try loading from cache if provided
-    if cache_path is not None and os.path.exists(cache_path) and not force_recompute:
-        try:
-            with open(cache_path, 'rb') as f:
-                cached = pickle.load(f)
-            print(f"Loaded upscaled transmissibilities from cache: {cache_path}")
-            return cached
-        except Exception as e:
-            print(f"Warning: failed to load cache '{cache_path}': {e} -- continuing to recompute")
+def solve_local_problems(coarse_grid_map, connections_x, connections_y, delta_vals, perm_field):
 
     upscaled_transmissbility = {}
 
-    total_coarse = Upscaling.NCx * Upscaling.NCy
-    for i in range(1, total_coarse + 1):
+    for i in range(1, Upscaling.NCx * Upscaling.NCy + 1):
+        
         center_cell = i
         x_neighbor = next((num for num in connections_x[center_cell - 1, 1:] if num > i), None)
         y_neighbor = next((num for num in connections_y[center_cell - 1, 1:] if num > i), None)
 
         # If neighbor == None, then there is no neighbor in that direction
+
         if x_neighbor is not None:
-            T_x_upscaled = upscaled_transmissibility(coarse_grid_map, center_cell, x_neighbor, delta_vals, 'x')
+            T_x_upscaled = upscaled_transmissibility(coarse_grid_map, center_cell, x_neighbor, delta_vals, 'x', perm_field)
             upscaled_transmissbility[(center_cell, x_neighbor)] = T_x_upscaled
 
         if y_neighbor is not None:
-            T_y_upscaled = upscaled_transmissibility(coarse_grid_map, center_cell, y_neighbor, delta_vals, 'y')
+            T_y_upscaled = upscaled_transmissibility(coarse_grid_map, center_cell, y_neighbor, delta_vals, 'y', perm_field)
             upscaled_transmissbility[(center_cell, y_neighbor)] = T_y_upscaled
 
-    # Save cache if requested
-    if cache_path is not None:
-        try:
-            os.makedirs(os.path.dirname(cache_path), exist_ok=True)
-            with open(cache_path, 'wb') as f:
-                pickle.dump(upscaled_transmissbility, f)
-            print(f"Saved upscaled transmissibilities to cache: {cache_path}")
-        except Exception as e:
-            print(f"Warning: failed to save cache '{cache_path}': {e}")
 
     return upscaled_transmissbility
 
 
-def upscaled_transmissibility(coarse_grid_map, coarse_cell_i, coarse_cell_j, delta_vals, direction):
+def upscaled_transmissibility(coarse_grid_map, coarse_cell_i, coarse_cell_j, delta_vals, direction, perm_field):
+    
     # defensive lookup: coarse_grid_map keys should be 0-based ints
     key_i = int(coarse_cell_i - 1)
     key_j = int(coarse_cell_j - 1)
@@ -217,25 +191,57 @@ def upscaled_transmissibility(coarse_grid_map, coarse_cell_i, coarse_cell_j, del
     A_local = np.zeros((num_local_cells, num_local_cells))
     b_local = np.zeros(num_local_cells)
 
-    T_fine_x = Calc.Transmissibility_Calc(delta_vals, 'x')
-    T_fine_y = Calc.Transmissibility_Calc(delta_vals, 'y')
-
     for local_idx, global_id in enumerate(local_domain):
         
         if (global_id + 1) in global_to_local_map:
+
             neighbor_local_idx = global_to_local_map[global_id + 1]
+
+            k1 = perm_field['x'][global_id]
+            k2 = perm_field['x'][global_id + 1]
+            k_int = Calc.permeability_average(k1, k2)
+
+            T_fine_x = Calc.Transmissibility_Calc(delta_vals, 'x', k_int)
+
             A_local[local_idx, neighbor_local_idx] = -T_fine_x
             A_local[local_idx, local_idx] += T_fine_x
+
         if (global_id - 1) in global_to_local_map:
+
             neighbor_local_idx = global_to_local_map[global_id - 1]
+
+            k1 = perm_field['x'][global_id]
+            k2 = perm_field['x'][global_id - 1]
+            k_int = Calc.permeability_average(k1, k2)
+
+            T_fine_x = Calc.Transmissibility_Calc(delta_vals, 'x', k_int)
+
             A_local[local_idx, neighbor_local_idx] = -T_fine_x
             A_local[local_idx, local_idx] += T_fine_x
+
         if (global_id + Grid.NX_total) in global_to_local_map: 
+
             neighbor_local_idx = global_to_local_map[global_id + Grid.NX_total]
+
+            k1 = perm_field['y'][global_id]
+            k2 = perm_field['y'][global_id + Grid.NX_total]
+            k_int = Calc.permeability_average(k1, k2)   
+
+            T_fine_y = Calc.Transmissibility_Calc(delta_vals, 'y', k_int)
+
             A_local[local_idx, neighbor_local_idx] = -T_fine_y
             A_local[local_idx, local_idx] += T_fine_y
+
         if (global_id - Grid.NX_total) in global_to_local_map: 
+
             neighbor_local_idx = global_to_local_map[global_id - Grid.NX_total]
+
+            k1 = perm_field['y'][global_id]
+            k2 = perm_field['y'][global_id - Grid.NX_total]
+            k_int = Calc.permeability_average(k1, k2)
+
+            T_fine_y = Calc.Transmissibility_Calc(delta_vals, 'y', k_int)
+
             A_local[local_idx, neighbor_local_idx] = -T_fine_y
             A_local[local_idx, local_idx] += T_fine_y
         

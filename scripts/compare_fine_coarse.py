@@ -46,19 +46,22 @@ def run_fine_no_wells():
     nsteps = Simulation.number_of_steps
     p_history = np.zeros((nsteps, total_cells), dtype=float)
 
+    # build permeability field for heterogeneous permeability
+    perm_field = M.grid_permeability()
+
     b_vector = M.RHS_Vector(accumulation, p0, q0)
-    a_matrix = M.Form_A_Matrix(connections_x, connections_y, p0, total_cells, accumulation, delta_vals)
+    a_matrix = M.Form_A_Matrix(connections_x, connections_y, p0, total_cells, accumulation, delta_vals, perm_field)
     p_new = spla.spsolve(a_matrix, b_vector)
     p_history[0, :] = p_new.ravel()
 
     for t in range(1, nsteps):
         p_n = p_new
         b_vector = M.RHS_Vector(accumulation, p_n, q0)
-        a_matrix = M.Form_A_Matrix(connections_x, connections_y, p_n, total_cells, accumulation, delta_vals)
+        a_matrix = M.Form_A_Matrix(connections_x, connections_y, p_n, total_cells, accumulation, delta_vals, perm_field)
         p_new = spla.spsolve(a_matrix, b_vector)
         p_history[t, :] = p_new.ravel()
 
-    return p_history, connections_x, connections_y, delta_vals
+    return p_history, connections_x, connections_y, delta_vals, perm_field
 
 
 def run_coarse_no_wells(upscaled_T, connections_x_c, connections_y_c, delta_coarse_vals):
@@ -114,7 +117,7 @@ def compare_series(ref, sim):
 def main():
     print("Running fine-scale (no wells)...")
     start = time.time()
-    p_fine, fx, fy, delta_vals = run_fine_no_wells()
+    p_fine, fx, fy, delta_vals, perm_field = run_fine_no_wells()
     coarse_map = Up.create_upscaled_grid()
     # create coarse connections
     cx, cy = Up.upscaled_connections()
@@ -122,7 +125,7 @@ def main():
     # compute upscaled transmissibilities (user's code)
     print("Computing upscaled transmissibilities (may take a while)...")
     # use coarse connections (cx, cy) when solving local problems
-    upscaled_T = Up.solve_local_problems(coarse_map, cx, cy, delta_vals)
+    upscaled_T = Up.solve_local_problems(coarse_map, cx, cy, delta_vals, perm_field)
 
     # run coarse sim
     delta_coarse_vals = Cs.Delta_Coarse_Values()

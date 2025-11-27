@@ -27,6 +27,10 @@ class Rock: # Rock properties
     porosity = 0.23 # [fraction]
     c_R = 0 # [psi^-1] 
 
+    k_high = 1000.0
+    k_low = 10.0
+    k_xy_ratio = 0.5
+
 class Fluid: # Fluid properties
     c_f = 1.9e-5 # [psi^-1]
     density = 58 # [lbm/ft^3]
@@ -41,6 +45,18 @@ class Grid: # Simulation grid properties
     NX = 50 
     NY = 50 
     NZ = 1 
+
+    WELL_RADIUS = 0.25 # [ft]
+
+    WELLS = {
+        'well1': {
+            'type': 'injector',
+            'location': [0, 0],
+            'control': 'rate',
+            'rates': [900]  # [STB/day]
+        }
+    }
+
 
     # Well properties. In a list to add multiple wells
     well_x = np.array([0])
@@ -67,6 +83,7 @@ class Simulation: # Simulation perameters
     number_of_steps = 80 # [days]
     stop_injection = False # Set to 'True' if you want the injection to stop
     stop_time = 400 # [days] (Set day when injection stops)
+    RATE_SCHEDULE = [0] # Can add a rate schedule as a list if wanted (overrides stop_injection and stop_time)
 
 class Upscaling: # Upscaling parameters
 

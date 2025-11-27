@@ -36,13 +36,13 @@ def Initialize_Arrays():
 
 
 # Determine the location (reference cell number) of the well(s)
-def Well_Location():
+def Well_Index():
     reservior = Initialize_Arrays()[0] # Gets reservoir from Initialize_Arrays function
 
     # Creates list of locations (reference cell numbers) for the wells. Creates a list for when there is multiple wells
-    well_location = [reservior[Grid.well_x_location[w]-1, Grid.well_y_location[w]-1] for w in range(len(Grid.well_x))]
+    well_index = [reservior[Grid.WELLS[w]['location'][1]-1, Grid.WELLS[w]['location'][0]-1] for w in Grid.WELLS]
 
-    return well_location
+    return well_index
 
 # Function to create matrix of pairs of connected reservior cells in the x direction
 def Reservior_X_Connection(reservior, connection_list_x):
