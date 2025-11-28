@@ -116,7 +116,9 @@ def Form_A_Matrix(connections_x, connections_y, p_n_vector, total_cells, accumul
 
     # Apply constant boundary condition efficiently on sparse LIL
     if Grid.Boundary_Condition == 1:
-        boundary_values = Con.Find_Boundary_Values()
+        
+        reservior = Con.Initialize_Arrays()[0]
+        boundary_values = Con.Find_Boundary_Values(reservior)
 
         for i in boundary_values:
             idx = i - 1
@@ -143,7 +145,7 @@ def well_treatment(well_index, a_matrix, b_vector, delta_values, perm_field, cur
     if current_time in Simulation.RATE_SCHEDULE:
         print(' =============== Rate Update =============== ')
 
-    for i, w in enumerate(Grid.WELLS):
+    for w in Grid.WELLS:
         if Grid.WELLS[w]['type'] == 'injector':
             rate_index = 0
             for j, start_time in enumerate(Simulation.RATE_SCHEDULE):
@@ -153,15 +155,15 @@ def well_treatment(well_index, a_matrix, b_vector, delta_values, perm_field, cur
                     break
 
             if current_time in Simulation.RATE_SCHEDULE:
-                print(f'Updating injection rate for well {w} at time step {current_time} to {Grid.WELLS[w]["rates"][rate_index]} STB/day')
+                print(f'Updating injection rate for {w} at time step {current_time} to {Grid.WELLS[w]["rates"][rate_index]} STB/day')
 
-            b_vector[well_index[i] - 1] -= Grid.WELLS[w]['rates'][rate_index]  # [STB/day]
+            b_vector[well_index[w] - 1] -= Grid.WELLS[w]['rates'][rate_index]  # [STB/day]
 
         elif Grid.WELLS[w]['type'] == 'producer':
-            well_transmissibility = Calc.well_transmissibility(delta_values, perm_field, well_index[i])
-            b_vector[well_index[i] - 1] -= well_transmissibility * Grid.BHP
+            well_transmissibility = Calc.well_transmissibility(delta_values, perm_field, well_index[w])
+            b_vector[well_index[w] - 1] -= well_transmissibility * Grid.BHP
             # LIL supports item assignment
-            a_matrix[well_index[i] - 1, well_index[i] - 1] -= well_transmissibility
+            a_matrix[well_index[w] - 1, well_index[w] - 1] -= well_transmissibility
 
     # Convert back to CSR for efficient solves
     try:

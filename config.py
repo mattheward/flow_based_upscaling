@@ -51,17 +51,13 @@ class Grid: # Simulation grid properties
     WELLS = {
         'well1': {
             'type': 'injector',
-            'location': [0, 0],
+            'location': [25, 25],
             'control': 'rate',
             'rates': [900]  # [STB/day]
         }
     }
 
-
-    # Well properties. In a list to add multiple wells
-    well_x = np.array([0])
-    well_y = np.array([0])
-    well_rate = np.array([900]) # [STB/day]
+    BHP = 2000
 
     '''
     DO NOT CHANGE THESE VALUES
@@ -73,8 +69,6 @@ class Grid: # Simulation grid properties
     '''
     NX_total = NX + 2 * Boundary_Condition
     NY_total = NY + 2 * Boundary_Condition
-    well_y_location = well_x + 1 * Boundary_Condition
-    well_x_location = well_y + 1 * Boundary_Condition
 
     
 class Simulation: # Simulation perameters

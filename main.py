@@ -22,6 +22,7 @@ import matrix as M
 import calculations as Calc
 import upscaling as Up
 import coarse_simulator as Cs
+import plot as Pl
 
 def main():
 
@@ -33,27 +34,27 @@ def main():
     delta_vals = Calc.Delta_Values()
     cell_volume = Calc.Cell_Volume(delta_vals)
     accumulation = Calc.Accumulation(cell_volume, delta_vals[3])
-    well_index = Con.Well_Index()
+    well_index_fine_vals = Con.Well_Index()
 
     # Intialize matrices and connections
     p0 = M.Initalize_P_Vector(total_cells)
     perm_field = M.grid_permeability()
-    connections_x, connections_y = Con.Initialize_Connections(total_cells)
+    connections_x_fine, connections_y_fine = Con.Initialize_Connections(total_cells)
     WBHP_vals = [[] for _ in range(len(Grid.WELLS))] # Creates list of list to create multiple plots if have multiple wells
 
     # Initialize matrices
     b_vector = M.RHS_Vector(accumulation, p0)
-    a_matrix = M.Form_A_Matrix(connections_x, connections_y, p0, total_cells, accumulation, delta_vals, perm_field)
+    a_matrix = M.Form_A_Matrix(connections_x_fine, connections_y_fine, p0, total_cells, accumulation, delta_vals, perm_field)
 
-    a_matrix, b_vector = M.well_treatment(well_index, a_matrix, b_vector, delta_vals, perm_field, current_time=0)
+    a_matrix, b_vector = M.well_treatment(well_index_fine_vals, a_matrix, b_vector, delta_vals, perm_field, current_time=0)
 
     # Solve for pressures using sparse solver
-    p_new = spla.spsolve(a_matrix, b_vector)
+    p_new_f = spla.spsolve(a_matrix, b_vector)
 
     # If constant pressure boundary condition is true then this will add a ring with constant pressure
     if Grid.Boundary_Condition == 1:
 
-        Pressure_Grid = p_new.reshape(Grid.NX_total, Grid.NY_total) # Convert P_new vector into matrix
+        Pressure_Grid = p_new_f.reshape(Grid.NX_total, Grid.NY_total) # Convert P_new vector into matrix
 
         # Create ring
         Pressure_Grid[0, :] = Field.P_boundary
@@ -61,80 +62,91 @@ def main():
         Pressure_Grid[:, 0] = Field.P_boundary
         Pressure_Grid[:, -1] = Field.P_boundary
 
-        p_new = Pressure_Grid.ravel() # Convert back to 1D vector
+        p_new_F = Pressure_Grid.ravel() # Convert back to 1D vector
 
     # Add pressure at each well location to respective WBHP list for plotting
-    for w in range(len(Grid.well_x)):
-        WBHP_vals[w].append(p_new[well_index[w]-1])
+    for n, w in enumerate(Grid.WELLS):
+        WBHP_vals[n].append(p_new_f[well_index_fine_vals[w]-1])
 
     # Loop through time steps
     for t in range(Simulation.number_of_steps - 1):
 
-        p_n = p_new # Defines previous future pressure as current pressure
+        p_n = p_new_f # Defines previous future pressure as current pressure
         b_vector = M.RHS_Vector(accumulation, p_n) # Recalculates b vector
-        a_matrix = M.Form_A_Matrix(connections_x, connections_y, p_n, total_cells, accumulation, delta_vals, perm_field) # Recalculates a matrix
+        a_matrix = M.Form_A_Matrix(connections_x_fine, connections_y_fine, p_n, total_cells, accumulation, delta_vals, perm_field) # Recalculates a matrix
         
-        a_matrix, b_vector = M.well_treatment(well_index, a_matrix, b_vector, delta_vals, perm_field, t+1)
+        a_matrix, b_vector = M.well_treatment(well_index_fine_vals, a_matrix, b_vector, delta_vals, perm_field, t+1)
         
-        p_new = spla.spsolve(a_matrix, b_vector) # Finds new pressure vector (1D)
+        p_new_f = spla.spsolve(a_matrix, b_vector) # Finds new pressure vector (1D)
 
-        for w in range(len(Grid.well_x)):
-            WBHP_vals[w].append(p_new[well_index[w]-1])
+        for n, w in enumerate(Grid.WELLS):
+            WBHP_vals[n].append(p_new_f[well_index_fine_vals[w]-1])
 
         if Grid.Boundary_Condition == 1:
-            Pressure_Grid = p_new.reshape(Grid.NX_total, Grid.NY_total)
+            Pressure_Grid = p_new_f.reshape(Grid.NX_total, Grid.NY_total)
             Pressure_Grid[0, :] = Field.P_boundary
             Pressure_Grid[-1, :] = Field.P_boundary
             Pressure_Grid[:, 0] = Field.P_boundary
             Pressure_Grid[:, -1] = Field.P_boundary
 
-            p_new = Pressure_Grid.ravel()
+            p_new_f = Pressure_Grid.ravel()
     
     # Calculates the mass flow rate if there is a constant pressure boundary layer
     if Grid.Boundary_Condition == 1:
-        flow_rate = Calc.Flow_Rate(p_new)
+        flow_rate = Calc.Flow_Rate(p_new_f)
         print(f'Final Total Flow Rate: {flow_rate:.3f} STB/day')
 
     # Prints final well pressure for each well
-    for w in range(len(Grid.well_x)):
-        print(f"Final pressure of well {w + 1}:", p_new[well_index[w] -1 ])
+    for w in Grid.WELLS:
+        print(f"Final pressure of {w}:", p_new_f[well_index_fine_vals[w] - 1])
 
     # Converts final pressure vector to matrix for plotting
-    Pressure_Grid = p_new.reshape(Grid.NX_total, Grid.NY_total)
 
 
+    # ========== Coarse Simulator ==========
 
-    # # ========== Coarse Simulator ==========
+    coarse_map = Up.create_upscaled_grid()
+    num_coarse_cells = Cs.Total_Coarse_Cells_2D()
+    delta_coarse_vals = Cs.Delta_Coarse_Values()
+    coarse_cell_volume = Cs.Coarse_Cell_Volume(delta_coarse_vals)
+    coarse_accumulation = Calc.Accumulation(coarse_cell_volume, delta_coarse_vals[3])
+    well_index_coarse_vals = Up.coarse_well_locations(coarse_map, well_index_fine_vals)
+    connections_x_coarse, connections_y_coarse = Up.upscaled_connections()
 
-    # num_coarse_cells = Cs.Total_Coarse_Cells_2D()
-    # delta_coarse_vals = Cs.Delta_Coarse_Values()
-    # coarse_cell_volume = Cs.Coarse_Cell_Volume(delta_coarse_vals)
-    # coarse_accumulation = Calc.Accumulation(coarse_cell_volume, delta_coarse_vals[3])
-    # upscaled_transmissbility = Up.solve_local_problems(coarse_map, connections_x, connections_y, delta_vals, perm_field)
+    upscaled_well_transmissibility = Up.coarse_well_transmissibilities(coarse_map, well_index_coarse_vals, well_index_fine_vals, delta_vals, perm_field)
+    upscaled_transmissbility = Up.solve_local_problems(coarse_map, connections_x_coarse, connections_y_coarse, delta_vals, perm_field)
 
-    # p0_c = M.Initalize_P_Vector(num_coarse_cells)
-    # q0_c = M.Initilalize_Q_Vectors(num_coarse_cells, Cs.Well_Location_Coarse(), stop_injection)
-    # coarse_map = Up.create_upscaled_grid()
-    # connections_x, connections_y =  Up.upscaled_connections()
+    p0_c = M.Initalize_P_Vector(num_coarse_cells)
+    # q0_c = M.Initilalize_Q_Vectors(num_coarse_cells, Cs.Well_Location_Coarse(), stop_injection = True)
 
-    # b_vector_c = M.RHS_Vector(coarse_accumulation, p0_c, q0_c)
-    # a_matrix_c = Cs.Form_A_Matrix_Coarse(connections_x, connections_y, upscaled_transmissbility, coarse_accumulation, num_coarse_cells)
+    b_vector_c = M.RHS_Vector(coarse_accumulation, p0_c)
+    a_matrix_c = Cs.Form_A_Matrix_Coarse(connections_x_coarse, connections_y_coarse, upscaled_transmissbility, coarse_accumulation, num_coarse_cells)
 
-    # p_new_c = spla.spsolve(a_matrix_c, b_vector_c)
+    a_matrix_c, b_vector_c = Up.coarse_well_treamtment(upscaled_well_transmissibility, well_index_coarse_vals, a_matrix_c, b_vector_c)
 
-    # for t in range(Simulation.number_of_steps - 1):
+    p_new_c = spla.spsolve(a_matrix_c, b_vector_c)
 
-    #     p_n_c = p_new_c
-    #     b_vector_c = M.RHS_Vector(coarse_accumulation, p_n_c, q0_c)
-    #     a_matrix_c = Cs.Form_A_Matrix_Coarse(connections_x, connections_y, upscaled_transmissbility, coarse_accumulation, num_coarse_cells)
-    #     p_new_c = spla.spsolve(a_matrix_c, b_vector_c)
+    for t in range(Simulation.number_of_steps - 1):
 
-    # Pressure_Grid_Coarse = p_new_c.reshape(Upscaling.NCx, Upscaling.NCy)
+        p_n_c = p_new_c
+        b_vector_c = M.RHS_Vector(coarse_accumulation, p_n_c)
+        a_matrix_c = Cs.Form_A_Matrix_Coarse(connections_x_coarse, connections_y_coarse, upscaled_transmissbility, coarse_accumulation, num_coarse_cells)
+
+        a_matrix_c, b_vector_c = Up.coarse_well_treamtment(upscaled_well_transmissibility, well_index_coarse_vals, a_matrix_c, b_vector_c)
+
+        p_new_c = spla.spsolve(a_matrix_c, b_vector_c)
+
+    for w in Grid.WELLS:
+        print(f"Final pressure of {w}:", p_new_c[well_index_coarse_vals[w] - 1])
 
     time.sleep(1) # Stops timer
     stop_time = time.time() # Captures stop time
     elapsed_time = stop_time - start_time # Finds time taken to run
     print(f"Elapsed time: {elapsed_time:.2f} seconds") # Prints time taken to run
+
+    Pl.fine_scale_pressure_map(p_new_f)
+    Pl.coarse_scale_pressure_map(p_new_c)
+    Pl.compare_pressure_fields(p_new_f, p_new_c, coarse_map)
 
 
     # # Creates plot for pressure at bottom of well(s)
@@ -149,17 +161,6 @@ def main():
     #     plt.legend()
 
     # plt.grid()
-
-
-    # # Creates plot for pressure map
-    # plt.figure()
-    # plt.imshow(Pressure_Grid, cmap = 'viridis', interpolation = 'nearest', origin = 'lower')
-    # plt.colorbar(label = 'Pressure (psi)' )
-    # plt.title('Pressure Distribution in Reservoir')
-    # plt.xlabel('X Direction')
-    # plt.ylabel('Y Direction')
-
-    # plt.show()
 
 
 # Runs program

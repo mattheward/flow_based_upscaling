@@ -32,27 +32,10 @@ def Delta_Coarse_Values():
 
     return [delta_x_coarse, delta_y_coarse, delta_z_coarse, delta_t_coarse]
 
+
 def Coarse_Cell_Volume(delta_coarse_vals):
 
     return delta_coarse_vals[0] * delta_coarse_vals[1] * delta_coarse_vals[2] # [ft^3]
-
-def Well_Location_Coarse(coarse_grid_map):
-
-    well_locations_coarse = []
-
-    for w in range(len(Grid.well_x)):
-        well_x = Grid.well_x[w]
-        well_y = Grid.well_y[w]
-
-        # Convert to coarse grid indices
-        coarse_i = int(well_x / (Field.Lx / Upscaling.NCx))
-        coarse_j = int(well_y / (Field.Ly / Upscaling.NCy))
-
-        coarse_cell_id = coarse_j * Upscaling.NCx + coarse_i
-
-        well_locations_coarse.append(coarse_cell_id)
-
-    return well_locations_coarse
 
 
 def Form_A_Matrix_Coarse(coarse_connections_x, coarse_connections_y, upscaled_transmissbility, coarse_accumulation, num_coarse_cells):
