@@ -31,6 +31,9 @@ class Rock: # Rock properties
     k_low = 10.0
     k_xy_ratio = 0.5
 
+    K_Y_FILE = 'permx_50x50x1.inc'
+    K_Y_FILE = 'permx_50x50x1.inc'
+
 class Fluid: # Fluid properties
     c_f = 1.9e-5 # [psi^-1]
     density = 58 # [lbm/ft^3]
@@ -42,8 +45,8 @@ class Grid: # Simulation grid properties
     Boundary_Condition = 0 # 0 = no flux B.C., 1 = Const Pressure B.C.
 
     # number of cells in x-direction
-    NX = 50 
-    NY = 50 
+    NX = 50
+    NY = 50
     NZ = 1 
 
     WELL_RADIUS = 0.25 # [ft]
@@ -51,7 +54,7 @@ class Grid: # Simulation grid properties
     WELLS = {
         'well1': {
             'type': 'injector',
-            'location': [25, 25],
+            'location': [28, 41],
             'control': 'rate',
             'rates': [900]  # [STB/day]
         }

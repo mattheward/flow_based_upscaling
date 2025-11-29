@@ -100,12 +100,17 @@ def main():
     for w in Grid.WELLS:
         print(f"Final pressure of {w}:", p_new_f[well_index_fine_vals[w] - 1])
 
-    # Converts final pressure vector to matrix for plotting
+    time.sleep(1) # Stops timer
+    stop_time = time.time() # Captures stop time
+    elapsed_time = stop_time - start_time # Finds time taken to run
+    print(f"Elapsed time fine simulation: {elapsed_time:.2f} seconds") # Prints time taken to run
 
+    start_time2 = time.time()
 
     # ========== Coarse Simulator ==========
 
     coarse_map = Up.create_upscaled_grid()
+    # print("Coarse Map:", coarse_map)
     num_coarse_cells = Cs.Total_Coarse_Cells_2D()
     delta_coarse_vals = Cs.Delta_Coarse_Values()
     coarse_cell_volume = Cs.Coarse_Cell_Volume(delta_coarse_vals)
@@ -117,7 +122,6 @@ def main():
     upscaled_transmissbility = Up.solve_local_problems(coarse_map, connections_x_coarse, connections_y_coarse, delta_vals, perm_field)
 
     p0_c = M.Initalize_P_Vector(num_coarse_cells)
-    # q0_c = M.Initilalize_Q_Vectors(num_coarse_cells, Cs.Well_Location_Coarse(), stop_injection = True)
 
     b_vector_c = M.RHS_Vector(coarse_accumulation, p0_c)
     a_matrix_c = Cs.Form_A_Matrix_Coarse(connections_x_coarse, connections_y_coarse, upscaled_transmissbility, coarse_accumulation, num_coarse_cells)
@@ -140,13 +144,17 @@ def main():
         print(f"Final pressure of {w}:", p_new_c[well_index_coarse_vals[w] - 1])
 
     time.sleep(1) # Stops timer
-    stop_time = time.time() # Captures stop time
-    elapsed_time = stop_time - start_time # Finds time taken to run
-    print(f"Elapsed time: {elapsed_time:.2f} seconds") # Prints time taken to run
+    stop_time2 = time.time() # Captures stop time
+    elapsed_time = stop_time2 - start_time2 # Finds time taken to run
+    print(f"Elapsed time Coarse Simulation: {elapsed_time:.2f} seconds") # Prints time taken to run
+
+
 
     Pl.fine_scale_pressure_map(p_new_f)
     Pl.coarse_scale_pressure_map(p_new_c)
     Pl.compare_pressure_fields(p_new_f, p_new_c, coarse_map)
+    # Pl.plot_coarse_grid(coarse_map)
+    Pl.perm_field_plot(perm_field)
 
 
     # # Creates plot for pressure at bottom of well(s)

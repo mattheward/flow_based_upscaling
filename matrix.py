@@ -43,6 +43,8 @@ def grid_permeability():
 
     perm_field = {}
 
+    # # Generate Perm Field
+
     # perm_x_field = np.full((Grid.NX_total, Grid.NY_total), Rock.k_high)
 
     # mid_point = Grid.NY_total // 2
@@ -51,8 +53,52 @@ def grid_permeability():
 
     # perm_y_field = perm_x_field * Rock.k_xy_ratio
 
-    perm_x_field = np.full((Grid.NX_total, Grid.NY_total), Rock.k_x)
-    perm_y_field = np.full((Grid.NX_total, Grid.NY_total), Rock.k_y)
+
+    # Keep Perm isentropic
+
+    # perm_x_field = np.full((Grid.NX_total, Grid.NY_total), Rock.k_x)
+    # perm_y_field = np.full((Grid.NX_total, Grid.NY_total), Rock.k_y)
+
+
+    # Read file
+
+    perm_x_field = []
+    file_name_x = Rock.K_Y_FILE
+
+    try:
+        with open(file_name_x, 'r') as f:
+            for line in f:
+                try:
+                    num = float(line.strip())
+                    perm_x_field.append(num)
+                except ValueError:
+                    pass
+
+    except FileNotFoundError:
+        print(f"Error: The file '{file_name_x}' was not found.")
+    except Exception as e:
+        print(f"An unexpected error occurred: {e}")
+
+    perm_x_field = np.array(perm_x_field)
+
+    perm_y_field = []
+    file_name_y = Rock.K_Y_FILE
+
+    try:
+        with open(file_name_y, 'r') as f:
+            for line in f:
+                try:
+                    num = float(line.strip())
+                    perm_y_field.append(num * 1.4)
+                except ValueError:
+                    pass
+
+    except FileNotFoundError:
+        print(f"Error: The file '{file_name_y}' was not found.")
+    except Exception as e:
+        print(f"An unexpected error occurred: {e}")
+
+    perm_y_field = np.array(perm_y_field)
 
     perm_field['x'] = perm_x_field.ravel()
     perm_field['y'] = perm_y_field.ravel()

@@ -14,7 +14,7 @@ import numpy as np
 import math
 
 # Import Files
-from config import Grid, Upscaling
+from config import Grid, Upscaling, Simulation
 import connections as Con
 import calculations as Calc
 
@@ -38,7 +38,7 @@ def create_upscaled_grid():
         for ic in range(NCx): # 0, 1, 2... from left
             
             # Calculate coarse cell ID based on the Cartesian layout
-            coarse_cell_id = jc * NCx + ic
+            coarse_cell_id = jc * NCx + ic + 1
             
             fine_cells_in_block = []
             
@@ -52,72 +52,12 @@ def create_upscaled_grid():
                     
                     # Convert Cartesian (i, j) coordinates (0-based) to your
                     # 1-based global fine ID.
-                    fine_cell_id = (j_fine * Nx + i_fine)
+                    fine_cell_id = (j_fine * Nx + i_fine + 1)
                     fine_cells_in_block.append(fine_cell_id)
             
             coarse_grid_map[coarse_cell_id] = fine_cells_in_block
             
     return coarse_grid_map
-
-
-def plot_coarse_grid(coarse_map):
-    """
-    Visualizes how the fine grid is partitioned into the coarse grid.
-    This function does not need to change.
-    """
-    Nx = Grid.NX_total
-    Ny = Grid.NY_total
-    NCx = Upscaling.NCx
-    NCy = Upscaling.NCy
-    
-    visualization_array = np.zeros((Ny, Nx))
-    
-    for coarse_id, fine_cells in coarse_map.items():
-        for fine_id in fine_cells:
-
-            j = fine_id // Nx  # Cartesian row (0 = bottom)
-            i = fine_id % Nx   # Matrix col (from left)
-
-            # With `origin='lower'` in imshow we can store directly using Cartesian j
-            visualization_array[j, i] = coarse_id
-            
-    fig, ax = plt.subplots(figsize=(10, 8))
-    cmap = plt.get_cmap('viridis', NCx * NCy)
-    # Use origin='lower' so row 0 appears at the bottom (Cartesian convention)
-    mat = ax.imshow(visualization_array, cmap=cmap, interpolation='none', aspect='equal', origin='lower')
-    
-    block_size_x = Nx // NCx
-    block_size_y = Ny // NCy
-
-    ax.set_xticks(np.arange(-.5, Nx, 1), minor=True)
-    ax.set_yticks(np.arange(-.5, Ny, 1), minor=True)
-    ax.grid(which='minor', color='w', linestyle='-', linewidth=0.5, alpha=0.3)
-    ax.set_xticks(np.arange(-.5, Nx, block_size_x))
-    ax.set_yticks(np.arange(-.5, Ny, block_size_y))
-    ax.grid(which='major', color='black', linestyle='-', linewidth=2)
-
-    for coarse_id in coarse_map.keys():
-        jc = coarse_id // NCx
-        ic = coarse_id % NCx
-        
-        # Calculate text position in Cartesian coordinates
-        center_x = ic * block_size_x + block_size_x / 2 - 0.5
-        center_y = jc * block_size_y + block_size_y / 2 - 0.5
-        
-        # center_y is already in Cartesian coordinates (0 = bottom), matching origin='lower'
-        ax.text(center_x, center_y, str(coarse_id), 
-                ha='center', va='center', color='white', fontsize=12,
-                bbox=dict(boxstyle="round,pad=0.3", fc='black', ec='black', lw=1, alpha=0.4))
-
-    ax.set_title(f"Corrected Cartesian Grid ({Nx}x{Ny}) to ({NCx}x{NCy})", fontsize=16)
-    ax.set_xlabel("Fine Cell Index (i)")
-    ax.set_ylabel("Fine Cell Index (j)")
-    
-    # origin='lower' already places 0 at the bottom; no inversion is needed.
-    
-    plt.colorbar(mat, ticks=range(NCx * NCy), label='Coarse Cell ID')
-    plt.tight_layout()
-    plt.show()
 
 
 def upscaled_connections():
@@ -146,7 +86,7 @@ def coarse_well_locations(coarse_grid_map, well_index):
     for w in Grid.WELLS:
 
         for coarse_id, fine_cells in coarse_grid_map.items():
-            if well_index[w] - 1 in fine_cells:
+            if well_index[w] in fine_cells:
                 well_index_coarse[w] = coarse_id
 
     return well_index_coarse
@@ -179,8 +119,8 @@ def solve_local_problems(coarse_grid_map, connections_x, connections_y, delta_va
 def upscaled_transmissibility(coarse_grid_map, coarse_cell_i, coarse_cell_j, delta_vals, direction, perm_field):
     
     # defensive lookup: coarse_grid_map keys should be 0-based ints
-    key_i = int(coarse_cell_i - 1)
-    key_j = int(coarse_cell_j - 1)
+    key_i = int(coarse_cell_i)
+    key_j = int(coarse_cell_j)
 
     fine_cells_i = coarse_grid_map.get(key_i)
     if fine_cells_i is None:
@@ -198,19 +138,23 @@ def upscaled_transmissibility(coarse_grid_map, coarse_cell_i, coarse_cell_j, del
 
     global_to_local_map = {global_id: local_id for local_id, global_id in enumerate(local_domain)}
     num_local_cells = len(local_domain)
-    print(f"Isolated {num_local_cells} fine cells for this local problem.")
+    # print(f"Isolated {num_local_cells} fine cells for this local problem.")
 
     A_local = np.zeros((num_local_cells, num_local_cells))
     b_local = np.zeros(num_local_cells)
 
     for local_idx, global_id in enumerate(local_domain):
         
+        center_global_id = global_id
+
         if (global_id + 1) in global_to_local_map:
 
-            neighbor_local_idx = global_to_local_map[global_id + 1]
+            neighbor_global_id = global_id + 1
 
-            k1 = perm_field['x'][global_id]
-            k2 = perm_field['x'][global_id + 1]
+            neighbor_local_idx = global_to_local_map[neighbor_global_id]
+
+            k1 = perm_field['x'][center_global_id - 1]
+            k2 = perm_field['x'][neighbor_global_id - 1]
             k_int = Calc.permeability_average(k1, k2)
 
             T_fine_x = Calc.Transmissibility_Calc(delta_vals, 'x', k_int)
@@ -220,10 +164,12 @@ def upscaled_transmissibility(coarse_grid_map, coarse_cell_i, coarse_cell_j, del
 
         if (global_id - 1) in global_to_local_map:
 
-            neighbor_local_idx = global_to_local_map[global_id - 1]
+            neighbor_global_id = global_id - 1
 
-            k1 = perm_field['x'][global_id]
-            k2 = perm_field['x'][global_id - 1]
+            neighbor_local_idx = global_to_local_map[neighbor_global_id]
+
+            k1 = perm_field['x'][center_global_id - 1]
+            k2 = perm_field['x'][neighbor_global_id - 1]
             k_int = Calc.permeability_average(k1, k2)
 
             T_fine_x = Calc.Transmissibility_Calc(delta_vals, 'x', k_int)
@@ -233,10 +179,12 @@ def upscaled_transmissibility(coarse_grid_map, coarse_cell_i, coarse_cell_j, del
 
         if (global_id + Grid.NX_total) in global_to_local_map: 
 
-            neighbor_local_idx = global_to_local_map[global_id + Grid.NX_total]
+            neighbor_global_id = global_id + Grid.NX_total
 
-            k1 = perm_field['y'][global_id]
-            k2 = perm_field['y'][global_id + Grid.NX_total]
+            neighbor_local_idx = global_to_local_map[neighbor_global_id]
+
+            k1 = perm_field['y'][center_global_id - 1]
+            k2 = perm_field['y'][neighbor_global_id - 1]
             k_int = Calc.permeability_average(k1, k2)   
 
             T_fine_y = Calc.Transmissibility_Calc(delta_vals, 'y', k_int)
@@ -246,10 +194,12 @@ def upscaled_transmissibility(coarse_grid_map, coarse_cell_i, coarse_cell_j, del
 
         if (global_id - Grid.NX_total) in global_to_local_map: 
 
-            neighbor_local_idx = global_to_local_map[global_id - Grid.NX_total]
+            neighbor_global_id = global_id - Grid.NX_total
 
-            k1 = perm_field['y'][global_id]
-            k2 = perm_field['y'][global_id - Grid.NX_total]
+            neighbor_local_idx = global_to_local_map[neighbor_global_id]
+
+            k1 = perm_field['y'][center_global_id - 1]
+            k2 = perm_field['y'][neighbor_global_id - 1]
             k_int = Calc.permeability_average(k1, k2)
 
             T_fine_y = Calc.Transmissibility_Calc(delta_vals, 'y', k_int)
@@ -305,8 +255,8 @@ def upscaled_transmissibility(coarse_grid_map, coarse_cell_i, coarse_cell_j, del
 
     T_upscaled = Q_total / delta_p_avg
 
-    print(f"  -> Avg P_I={p_avg_i:.4f}, Avg P_J={p_avg_i:.4f}, Q_total={Q_total:.4f}")
-    print(f"  -> Upscaled T* = {T_upscaled:.4f}")
+    # print(f"  -> Avg P_I={p_avg_i:.4f}, Avg P_J={p_avg_i:.4f}, Q_total={Q_total:.4f}")
+    # print(f"  -> Upscaled T* = {T_upscaled:.4f}")
 
     return T_upscaled
 
@@ -360,13 +310,17 @@ def upscaled_well_transmissibility(coarse_grid_map, well_index_coarse, well_inde
     b_local = np.zeros(num_local_cells)
 
     for local_idx, global_id in enumerate(padding_domain):
+
+        center_global_id = global_id
         
         if (global_id + 1) in global_to_local_map:
 
-            neighbor_local_idx = global_to_local_map[global_id + 1]
+            neighbor_global_id = global_id + 1
 
-            k1 = perm_field['x'][global_id]
-            k2 = perm_field['x'][global_id + 1]
+            neighbor_local_idx = global_to_local_map[neighbor_global_id]
+
+            k1 = perm_field['x'][center_global_id - 1]
+            k2 = perm_field['x'][neighbor_global_id - 1]
             k_int = Calc.permeability_average(k1, k2)
 
             T_fine_x = Calc.Transmissibility_Calc(delta_vals, 'x', k_int)
@@ -376,10 +330,12 @@ def upscaled_well_transmissibility(coarse_grid_map, well_index_coarse, well_inde
 
         if (global_id - 1) in global_to_local_map:
 
-            neighbor_local_idx = global_to_local_map[global_id - 1]
+            neighbor_global_id = global_id - 1
 
-            k1 = perm_field['x'][global_id]
-            k2 = perm_field['x'][global_id - 1]
+            neighbor_local_idx = global_to_local_map[neighbor_global_id]
+
+            k1 = perm_field['x'][center_global_id - 1]
+            k2 = perm_field['x'][neighbor_global_id - 1]
             k_int = Calc.permeability_average(k1, k2)
 
             T_fine_x = Calc.Transmissibility_Calc(delta_vals, 'x', k_int)
@@ -391,8 +347,8 @@ def upscaled_well_transmissibility(coarse_grid_map, well_index_coarse, well_inde
 
             neighbor_local_idx = global_to_local_map[global_id + Grid.NX_total]
 
-            k1 = perm_field['y'][global_id]
-            k2 = perm_field['y'][global_id + Grid.NX_total]
+            k1 = perm_field['y'][center_global_id - 1]
+            k2 = perm_field['y'][neighbor_local_idx - 1]
             k_int = Calc.permeability_average(k1, k2)   
 
             T_fine_y = Calc.Transmissibility_Calc(delta_vals, 'y', k_int)
@@ -404,8 +360,8 @@ def upscaled_well_transmissibility(coarse_grid_map, well_index_coarse, well_inde
 
             neighbor_local_idx = global_to_local_map[global_id - Grid.NX_total]
 
-            k1 = perm_field['y'][global_id]
-            k2 = perm_field['y'][global_id - Grid.NX_total]
+            k1 = perm_field['y'][center_global_id - 1]
+            k2 = perm_field['y'][neighbor_local_idx - 1]
             k_int = Calc.permeability_average(k1, k2)
 
             T_fine_y = Calc.Transmissibility_Calc(delta_vals, 'y', k_int)
@@ -467,7 +423,6 @@ def upscaled_well_transmissibility(coarse_grid_map, well_index_coarse, well_inde
 
     print(f"  -> Calculated Upscaled Well Index WI* = {WI_star:.4f}")
     
-
     return WI_star
 
 
@@ -544,34 +499,36 @@ def coarse_well_treamtment(upscaled_well_transmissibility, well_index_coarse_val
     """
     Applies the upscaled well transmissibility to the coarse A matrix and b vector.
     """
-    from config import Simulation
 
     for w, WI_star in upscaled_well_transmissibility.items():
         coarse_well_idx = well_index_coarse_vals[w]
 
-        # Match fine-grid sign/convention from `matrix.well_treatment`:
-        # - Injector: apply rate as a source (b -= rate)
-        # - Producer: apply well transmissibility (diag -= WI*) and b -= WI* * BHP
-        well_def = Grid.WELLS[w]
+        b_vector_c[coarse_well_idx - 1] -= Grid.WELLS[w]['rates'][0]
 
-        if well_def.get('type') == 'injector':
-            # handle rate schedule if present (use first entry by default)
-            rate_index = 0
-            for j, start_time in enumerate(Simulation.RATE_SCHEDULE):
-                if 0 >= start_time:  # calling outside time loop; assume initial rate
-                    rate_index = j
-                else:
-                    break
-            rate = well_def.get('rates', [0])[rate_index]
-            b_vector_c[coarse_well_idx - 1] -= rate
+        # # Match fine-grid sign/convention from `matrix.well_treatment`:
+        # # - Injector: apply rate as a source (b -= rate)
+        # # - Producer: apply well transmissibility (diag -= WI*) and b -= WI* * BHP
+        # well_def = Grid.WELLS[w]
 
-        elif well_def.get('type') == 'producer':
-            a_matrix_c[coarse_well_idx - 1, coarse_well_idx - 1] -= WI_star
-            b_vector_c[coarse_well_idx - 1] -= WI_star * Grid.BHP
+        # if well_def.get('type') == 'injector':
+        #     # handle rate schedule if present (use first entry by default)
+        #     rate_index = 0
+        #     for j, start_time in enumerate(Simulation.RATE_SCHEDULE):
+        #         if 0 >= start_time:  # calling outside time loop; assume initial rate
+        #             rate_index = j
+        #         else:
+        #             break
 
-        else:
-            # Unknown type: fall back to applying as injector rate if provided
-            if 'rates' in well_def:
-                b_vector_c[coarse_well_idx - 1] -= well_def['rates'][0]
+        #     rate = well_def.get('rates', [0])[rate_index]
+        #     b_vector_c[coarse_well_idx - 1] -= rate
+
+        # elif well_def.get('type') == 'producer':
+        #     a_matrix_c[coarse_well_idx - 1, coarse_well_idx - 1] -= WI_star
+        #     b_vector_c[coarse_well_idx - 1] -= WI_star * Grid.BHP
+
+        # else:
+        #     # Unknown type: fall back to applying as injector rate if provided
+        #     if 'rates' in well_def:
+        #         b_vector_c[coarse_well_idx - 1] -= well_def['rates'][0]
 
     return a_matrix_c, b_vector_c
