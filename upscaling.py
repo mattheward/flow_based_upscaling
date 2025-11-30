@@ -495,15 +495,55 @@ def plot_padded_domain(core_domain, buffer_ring):
     plt.show()
 
 
-def coarse_well_treamtment(upscaled_well_transmissibility, well_index_coarse_vals, a_matrix_c, b_vector_c):
+def coarse_well_treamtment(upscaled_well_transmissibility, well_index_coarse_vals, a_matrix_c, b_vector_c, current_time):
     """
     Applies the upscaled well transmissibility to the coarse A matrix and b vector.
     """
 
-    for w, WI_star in upscaled_well_transmissibility.items():
-        coarse_well_idx = well_index_coarse_vals[w]
+    # for w, WI_star in upscaled_well_transmissibility.items():
+    #     coarse_well_idx = well_index_coarse_vals[w]
 
-        b_vector_c[coarse_well_idx - 1] -= Grid.WELLS[w]['rates'][0]
+    #     b_vector_c[coarse_well_idx - 1] -= Grid.WELLS[w]['rates'][0]
+    
+    # Convert matrix to LIL for efficient element/row assignment
+    try:
+        a_matrix = a_matrix.tolil()
+    except Exception:
+        # If a_matrix is already a dense ndarray or similar, leave it
+        pass
+
+    if current_time in Simulation.RATE_SCHEDULE:
+        print(' =============== Rate Update =============== ')
+
+    # for w in Grid.WELLS:
+    #     well_id = well_index[w]
+
+    #     b_vector[well_id - 1] -= Grid.WELLS[w]['rates'][0]
+
+    for w in Grid.WELLS:
+        if Grid.WELLS[w]['type'] == 'injector':
+            rate_index = 0
+            for j, start_time in enumerate(Simulation.RATE_SCHEDULE):
+                if current_time >= start_time:
+                    rate_index = j
+                else:
+                    break
+
+            if current_time in Simulation.RATE_SCHEDULE:
+                print(f'Updating injection rate for {w} at time step {current_time} to {Grid.WELLS[w]["rates"][rate_index]} STB/day')
+
+            b_vector_c[well_index_coarse_vals[w] - 1] -= Grid.WELLS[w]['rates'][rate_index]  # [STB/day]
+
+        elif Grid.WELLS[w]['type'] == 'producer':
+            b_vector_c[well_index_coarse_vals[w] - 1] -= upscaled_transmissibility[w] * Grid.BHP
+            # LIL supports item assignment
+            a_matrix_c[well_index_coarse_vals[w] - 1, well_index_coarse_vals[w] - 1] -= upscaled_transmissibility[w]
+
+    # Convert back to CSR for efficient solves
+    try:
+        a_matrix = a_matrix.tocsr()
+    except Exception:
+        pass
 
         # # Match fine-grid sign/convention from `matrix.well_treatment`:
         # # - Injector: apply rate as a source (b -= rate)

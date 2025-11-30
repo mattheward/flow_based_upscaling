@@ -62,7 +62,7 @@ def main():
         Pressure_Grid[:, 0] = Field.P_boundary
         Pressure_Grid[:, -1] = Field.P_boundary
 
-        p_new_F = Pressure_Grid.ravel() # Convert back to 1D vector
+        p_new_f = Pressure_Grid.ravel() # Convert back to 1D vector
 
     # Add pressure at each well location to respective WBHP list for plotting
     for n, w in enumerate(Grid.WELLS):
@@ -71,11 +71,13 @@ def main():
     # Loop through time steps
     for t in range(Simulation.number_of_steps - 1):
 
+        current_time = t + 1
+
         p_n = p_new_f # Defines previous future pressure as current pressure
         b_vector = M.RHS_Vector(accumulation, p_n) # Recalculates b vector
         a_matrix = M.Form_A_Matrix(connections_x_fine, connections_y_fine, p_n, total_cells, accumulation, delta_vals, perm_field) # Recalculates a matrix
         
-        a_matrix, b_vector = M.well_treatment(well_index_fine_vals, a_matrix, b_vector, delta_vals, perm_field, t+1)
+        a_matrix, b_vector = M.well_treatment(well_index_fine_vals, a_matrix, b_vector, delta_vals, perm_field, current_time)
         
         p_new_f = spla.spsolve(a_matrix, b_vector) # Finds new pressure vector (1D)
 
@@ -126,17 +128,19 @@ def main():
     b_vector_c = M.RHS_Vector(coarse_accumulation, p0_c)
     a_matrix_c = Cs.Form_A_Matrix_Coarse(connections_x_coarse, connections_y_coarse, upscaled_transmissbility, coarse_accumulation, num_coarse_cells)
 
-    a_matrix_c, b_vector_c = Up.coarse_well_treamtment(upscaled_well_transmissibility, well_index_coarse_vals, a_matrix_c, b_vector_c)
+    a_matrix_c, b_vector_c = Up.coarse_well_treamtment(upscaled_well_transmissibility, well_index_coarse_vals, a_matrix_c, b_vector_c, current_time=0)
 
     p_new_c = spla.spsolve(a_matrix_c, b_vector_c)
 
     for t in range(Simulation.number_of_steps - 1):
 
+        current_time = t + 1
+
         p_n_c = p_new_c
         b_vector_c = M.RHS_Vector(coarse_accumulation, p_n_c)
         a_matrix_c = Cs.Form_A_Matrix_Coarse(connections_x_coarse, connections_y_coarse, upscaled_transmissbility, coarse_accumulation, num_coarse_cells)
 
-        a_matrix_c, b_vector_c = Up.coarse_well_treamtment(upscaled_well_transmissibility, well_index_coarse_vals, a_matrix_c, b_vector_c)
+        a_matrix_c, b_vector_c = Up.coarse_well_treamtment(upscaled_well_transmissibility, well_index_coarse_vals, a_matrix_c, b_vector_c, current_time)
 
         p_new_c = spla.spsolve(a_matrix_c, b_vector_c)
 
@@ -154,7 +158,7 @@ def main():
     Pl.coarse_scale_pressure_map(p_new_c)
     Pl.compare_pressure_fields(p_new_f, p_new_c, coarse_map)
     # Pl.plot_coarse_grid(coarse_map)
-    Pl.perm_field_plot(perm_field)
+    # Pl.perm_field_plot(perm_field)
 
 
     # # Creates plot for pressure at bottom of well(s)

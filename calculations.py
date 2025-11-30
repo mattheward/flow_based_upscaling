@@ -57,7 +57,7 @@ def well_transmissibility(delta_values, perm_field, well_index):
     s = 0
     k_avg = math.sqrt(perm_field['x'][well_index - 1] * perm_field['y'][well_index - 1])
 
-    return (2 * np.pi * k_avg * delta_values[2] / Fluid.VISCOSITY) * (1 / (np.log(r_o/r_w) + s))
+    return (2 * np.pi * k_avg * delta_values[2] / Fluid.viscosity) * (1 / (np.log(r_o/r_w) + s))
 
 
 # Calculates the accumulation number

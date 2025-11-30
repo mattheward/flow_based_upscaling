@@ -191,6 +191,11 @@ def well_treatment(well_index, a_matrix, b_vector, delta_values, perm_field, cur
     if current_time in Simulation.RATE_SCHEDULE:
         print(' =============== Rate Update =============== ')
 
+    # for w in Grid.WELLS:
+    #     well_id = well_index[w]
+
+    #     b_vector[well_id - 1] -= Grid.WELLS[w]['rates'][0]
+
     for w in Grid.WELLS:
         if Grid.WELLS[w]['type'] == 'injector':
             rate_index = 0

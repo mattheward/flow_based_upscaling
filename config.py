@@ -57,6 +57,18 @@ class Grid: # Simulation grid properties
             'location': [28, 41],
             'control': 'rate',
             'rates': [900]  # [STB/day]
+        },
+        'well2': {
+            'type': 'injector',
+            'location': [14, 23],
+            'control': 'rate',
+            'rates': [1400]  # [STB/day]
+        },
+        'well3': {
+            'type': 'injector',
+            'location': [43, 23],
+            'control': 'rate',
+            'rates': [400]  # [STB/day]
         }
     }
 
