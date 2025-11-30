@@ -33,12 +33,13 @@ def main():
     total_cells = Calc.Total_Cells_2D()
     delta_vals = Calc.Delta_Values()
     cell_volume = Calc.Cell_Volume(delta_vals)
-    accumulation = Calc.Accumulation(cell_volume, delta_vals[3])
+    perm_field = M.grid_permeability()
+    porosity_field = M.grid_porosity()
+    accumulation = Calc.Accumulation(cell_volume, delta_vals[3], porosity_field)
     well_index_fine_vals = Con.Well_Index()
 
     # Intialize matrices and connections
     p0 = M.Initalize_P_Vector(total_cells)
-    perm_field = M.grid_permeability()
     connections_x_fine, connections_y_fine = Con.Initialize_Connections(total_cells)
     WBHP_vals = [[] for _ in range(len(Grid.WELLS))] # Creates list of list to create multiple plots if have multiple wells
 
@@ -116,7 +117,8 @@ def main():
     num_coarse_cells = Cs.Total_Coarse_Cells_2D()
     delta_coarse_vals = Cs.Delta_Coarse_Values()
     coarse_cell_volume = Cs.Coarse_Cell_Volume(delta_coarse_vals)
-    coarse_accumulation = Calc.Accumulation(coarse_cell_volume, delta_coarse_vals[3])
+    coarse_porosity_field = Up.upscaled_porosity_field(coarse_map, porosity_field)
+    coarse_accumulation = Calc.Accumulation(coarse_cell_volume, delta_coarse_vals[3], coarse_porosity_field)
     well_index_coarse_vals = Up.coarse_well_locations(coarse_map, well_index_fine_vals)
     connections_x_coarse, connections_y_coarse = Up.upscaled_connections()
 
@@ -159,7 +161,7 @@ def main():
     Pl.compare_pressure_fields(p_new_f, p_new_c, coarse_map)
     # Pl.plot_coarse_grid(coarse_map)
     # Pl.perm_field_plot(perm_field)
-
+    Pl.porosity_field_plot(porosity_field)
 
     # # Creates plot for pressure at bottom of well(s)
     # plt.figure() 

@@ -106,6 +106,30 @@ def grid_permeability():
     return perm_field # Returns 1D arrays of permeability values
 
 
+def grid_porosity():
+
+    porosity_field = []
+    file_name = Rock.POROSITY_FILE
+
+    try:
+        with open(file_name, 'r') as f:
+            for line in f:
+                try:
+                    num = float(line.strip())
+                    porosity_field.append(num)
+                except ValueError:
+                    pass
+
+    except FileNotFoundError:
+        print(f"Error: The file '{file_name}' was not found.")
+    except Exception as e:
+        print(f"An unexpected error occurred: {e}")
+
+    porosity_field = np.array(porosity_field)
+
+    return porosity_field.ravel()
+
+
 # Creates b vector (RHS) 
 def RHS_Vector(accumulation, p):
     # p and q are 1D arrays; return 1D RHS
@@ -158,7 +182,7 @@ def Form_A_Matrix(connections_x, connections_y, p_n_vector, total_cells, accumul
         Get_Transmissibility_Values(a_matrix, center_cell, p_n_vector, neighbor_y2, 'y', b_star, t_values, delta_vals, perm_field)
 
         # Calculate diagonal value and set it
-        a_matrix[center_cell - 1, center_cell - 1] = -Calc.Diag_Transmissibility_Calc(t_values, accumulation)
+        a_matrix[center_cell - 1, center_cell - 1] = -(sum(t_values) + accumulation[center_cell -1])
 
     # Apply constant boundary condition efficiently on sparse LIL
     if Grid.Boundary_Condition == 1:

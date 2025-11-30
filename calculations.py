@@ -61,9 +61,9 @@ def well_transmissibility(delta_values, perm_field, well_index):
 
 
 # Calculates the accumulation number
-def Accumulation(Cell_Volume, delta_t):
+def Accumulation(Cell_Volume, delta_t, porosity_field):
 
-    return (Cell_Volume * Rock.porosity * Fluid.c_f)/(5.615 * delta_t) # [ft^3/psi/day]
+    return (Cell_Volume * porosity_field * Fluid.c_f)/(5.615 * delta_t) # [ft^3/psi/day]
 
 
 def permeability_average(k1, k2):

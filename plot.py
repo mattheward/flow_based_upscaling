@@ -172,7 +172,7 @@ def plot_coarse_grid(coarse_map):
                 ha='center', va='center', color='white', fontsize=12,
                 bbox=dict(boxstyle="round,pad=0.3", fc='black', ec='black', lw=1, alpha=0.4))
 
-    ax.set_title(f"Corrected Cartesian Grid ({Nx}x{Ny}) to ({NCx}x{NCy})", fontsize=16)
+    ax.set_title(f"Cartesian Grid ({Nx}x{Ny}) to ({NCx}x{NCy})", fontsize=16)
     ax.set_xlabel("Fine Cell Index (i)")
     ax.set_ylabel("Fine Cell Index (j)")
     
@@ -206,3 +206,18 @@ def perm_field_plot(perm_field):
     plt.tight_layout()
     plt.show()
     
+
+def porosity_field_plot(porosity_field):
+
+    porosity_field = porosity_field.reshape((Grid.NY_total, Grid.NX_total))
+
+    porosity_min = porosity_field.min()
+    porosity_max = porosity_field.max()
+
+    # Creates plot for pressure map
+    plt.figure()
+    plt.imshow(porosity_field, cmap = 'tab20', interpolation = 'nearest', origin = 'lower', vmin=porosity_min, vmax=porosity_max)
+    plt.colorbar(label = 'Porosity' )
+    plt.title('Reservior Porosity Map')
+    plt.tight_layout()
+    plt.show()

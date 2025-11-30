@@ -33,6 +33,7 @@ class Rock: # Rock properties
 
     K_Y_FILE = 'permx_50x50x1.inc'
     K_Y_FILE = 'permx_50x50x1.inc'
+    POROSITY_FILE = 'poro_50x50x1.inc'
 
 class Fluid: # Fluid properties
     c_f = 1.9e-5 # [psi^-1]

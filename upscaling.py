@@ -92,6 +92,24 @@ def coarse_well_locations(coarse_grid_map, well_index):
     return well_index_coarse
 
 
+def upscaled_porosity_field(coarse_map, porosity_field):
+
+    num_coarse_cells = len(coarse_map)
+    upscaled_porosity = np.zeros(num_coarse_cells)
+
+    for coarse_id, fine_cells in coarse_map.items():
+
+        coarse_index = coarse_id - 1
+
+        fine_porosities = [porosity_field[i - 1] for i in fine_cells]
+
+        avg_porosity = np.mean(fine_porosities)
+
+        upscaled_porosity[coarse_index] = avg_porosity
+
+    return upscaled_porosity
+
+
 def solve_local_problems(coarse_grid_map, connections_x, connections_y, delta_vals, perm_field):
 
     upscaled_transmissbility = {}
@@ -551,31 +569,5 @@ def coarse_well_treamtment(upscaled_well_transmissibility, well_index_coarse_val
         a_matrix = a_matrix.tocsr()
     except Exception:
         pass
-
-        # # Match fine-grid sign/convention from `matrix.well_treatment`:
-        # # - Injector: apply rate as a source (b -= rate)
-        # # - Producer: apply well transmissibility (diag -= WI*) and b -= WI* * BHP
-        # well_def = Grid.WELLS[w]
-
-        # if well_def.get('type') == 'injector':
-        #     # handle rate schedule if present (use first entry by default)
-        #     rate_index = 0
-        #     for j, start_time in enumerate(Simulation.RATE_SCHEDULE):
-        #         if 0 >= start_time:  # calling outside time loop; assume initial rate
-        #             rate_index = j
-        #         else:
-        #             break
-
-        #     rate = well_def.get('rates', [0])[rate_index]
-        #     b_vector_c[coarse_well_idx - 1] -= rate
-
-        # elif well_def.get('type') == 'producer':
-        #     a_matrix_c[coarse_well_idx - 1, coarse_well_idx - 1] -= WI_star
-        #     b_vector_c[coarse_well_idx - 1] -= WI_star * Grid.BHP
-
-        # else:
-        #     # Unknown type: fall back to applying as injector rate if provided
-        #     if 'rates' in well_def:
-        #         b_vector_c[coarse_well_idx - 1] -= well_def['rates'][0]
 
     return a_matrix_c, b_vector_c
