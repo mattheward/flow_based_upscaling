@@ -431,7 +431,14 @@ def coarse_well_transmissibilities(coarse_map, well_index_coarse_vals, well_inde
     upscaled_well_transmissibilities = {}
 
     for well, well_index_c in well_index_coarse_vals.items():
-        well_rate = Grid.WELLS[well]['rates'][0]
+        
+        well_type = Grid.WELLS[well]['type']
+
+        if well_type == 'injector':
+            well_rate = Grid.WELLS[well]['rates'][0]
+        elif well_type == 'producer':
+            well_rate = 1
+
         well_index_fine = well_index_fine_vals[well]
         WI_star = upscaled_well_transmissibility(coarse_map, well_index_c, well_index_fine, well_rate, delta_vals, perm_field)
         upscaled_well_transmissibilities[well] = WI_star
@@ -535,9 +542,9 @@ def coarse_well_treamtment(upscaled_well_transmissibility, well_index_coarse_val
             b_vector_c[well_index_coarse_vals[w] - 1] -= Grid.WELLS[w]['rates'][rate_index]  # [STB/day]
 
         elif Grid.WELLS[w]['type'] == 'producer':
-            b_vector_c[well_index_coarse_vals[w] - 1] -= upscaled_transmissibility[w] * Grid.BHP
+            b_vector_c[well_index_coarse_vals[w] - 1] -= upscaled_well_transmissibility[w] * Grid.BHP
             # LIL supports item assignment
-            a_matrix_c[well_index_coarse_vals[w] - 1, well_index_coarse_vals[w] - 1] -= upscaled_transmissibility[w]
+            a_matrix_c[well_index_coarse_vals[w] - 1, well_index_coarse_vals[w] - 1] -= upscaled_well_transmissibility[w]
 
     # Convert back to CSR for efficient solves
     try:
