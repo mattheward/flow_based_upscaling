@@ -21,7 +21,7 @@ import calculations as Calc
 
 def Total_Coarse_Cells_2D():
 
-    return Upscaling.NCx * Upscaling.NCy # [cells]
+    return Upscaling.NCx * Upscaling.NCy - 1 # [cells]
 
 def Delta_Coarse_Values():
 
@@ -38,46 +38,47 @@ def Coarse_Cell_Volume(delta_coarse_vals):
     return delta_coarse_vals[0] * delta_coarse_vals[1] * delta_coarse_vals[2] # [ft^3]
 
 
-def Form_A_Matrix_Coarse(coarse_connections_x, coarse_connections_y, upscaled_transmissbility, coarse_accumulation, num_coarse_cells):
+def Form_A_Matrix_Coarse(upscaled_transmissibility, coarse_accumulation, num_coarse_cells):
+
     a_matrix = sp.lil_matrix((num_coarse_cells, num_coarse_cells), dtype=float)
+        
+    # We create a temporary array to hold the sum of T* for each cell's diagonal
+    diag_T_sum = np.zeros(num_coarse_cells)
 
-    # Accept either scalar or per-cell accumulation
+    # --- This is the new, robust loop ---
+    # We iterate directly over the calculated T* values. This is the "source of truth".
+    for (i, j), T_star in upscaled_transmissibility.items():
+        
+        # Convert 1-based IDs from your dictionary keys to 0-based indices
+        idx_i = i - 1
+        idx_j = j - 1
+        
+        # Set the off-diagonal terms. The matrix is symmetric.
+        a_matrix[idx_i, idx_j] = T_star
+        a_matrix[idx_j, idx_i] = T_star
+        
+        # Add this T* value to the sum for each cell's diagonal calculation
+        diag_T_sum[idx_i] += T_star
+        diag_T_sum[idx_j] += T_star
+
+    # --- Now, build the diagonal ---
     is_scalar_acc = np.isscalar(coarse_accumulation)
-
-    for i in range(num_coarse_cells):
-
-        t_vals_for_diag = []
-
-        # neighbors in coarse_connections are 1-based IDs or 0 placeholders
-        all_neighbors = list(coarse_connections_x[i, 1:]) + list(coarse_connections_y[i, 1:])
-
-        for neighbor in all_neighbors:
-            # skip placeholders
-            if neighbor == 0:
-                continue
-
-            # neighbor is 1-based; convert to 0-based index for matrix placement
-            neigh_idx = int(neighbor) - 1
-
-            # Look up T* using the upscaling dict keys which are 1-based in your upscaling module
-            key1 = (i + 1, int(neighbor))
-            key2 = (int(neighbor), i + 1)
-
-            if key1 in upscaled_transmissbility:
-                T_star = upscaled_transmissbility[key1]
-            elif key2 in upscaled_transmissbility:
-                T_star = upscaled_transmissbility[key2]
-            else:
-                print(f"Warning: No T* found for connection ({i+1}, {neighbor}) - skipping")
-                continue
-
-            # set off-diagonal (i, neigh_idx)
-            a_matrix[i, neigh_idx] = T_star
-            t_vals_for_diag.append(T_star)
-
-        # diagonal accumulation value per cell
-        acc_val = coarse_accumulation if is_scalar_acc else coarse_accumulation[i]
-        a_matrix[i, i] = -Calc.Diag_Transmissibility_Calc(t_vals_for_diag, acc_val)
+    
+    # Loop through all cells to set their diagonal value
+    for k in range(num_coarse_cells):
+        
+        acc_val = coarse_accumulation if is_scalar_acc else coarse_accumulation[k]
+        
+        # Get the sum of T* for this cell
+        T_sum_for_cell_k = diag_T_sum[k]
+        
+        # Your Calc function expects a list of T_vals and an accumulation term.
+        # We pass it the single summed value in a list for compatibility.
+        # It also applies the negative sign.
+        a_matrix[k, k] = -Calc.Diag_Transmissibility_Calc([T_sum_for_cell_k], acc_val)
+        
+        # A more direct way, if your Calc function is just sum(T) + acc:
+        # a_matrix[k, k] = -(diag_T_sum[k] + acc_val)
 
     return a_matrix.tocsr()
 

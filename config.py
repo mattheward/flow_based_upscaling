@@ -99,3 +99,4 @@ class Upscaling: # Upscaling parameters
 
     NCy = 10
     NCx = 10
+    GRID_TYPE = 'unstructured'

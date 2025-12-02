@@ -19,7 +19,7 @@ import connections as Con
 import calculations as Calc
 
 
-def create_upscaled_grid():
+def create_structured_grid():
 
     Nx = Grid.NX_total
     Ny = Grid.NY_total
@@ -32,7 +32,7 @@ def create_upscaled_grid():
     block_size_x = Nx // NCx
     block_size_y = Ny // NCy
 
-    coarse_grid_map = {}
+    structured_grid = {}
 
     for jc in range(NCy): # 0, 1, 2... from bottom
         for ic in range(NCx): # 0, 1, 2... from left
@@ -55,27 +55,91 @@ def create_upscaled_grid():
                     fine_cell_id = (j_fine * Nx + i_fine + 1)
                     fine_cells_in_block.append(fine_cell_id)
             
-            coarse_grid_map[coarse_cell_id] = fine_cells_in_block
+            structured_grid[coarse_cell_id] = fine_cells_in_block
             
-    return coarse_grid_map
+    return structured_grid
 
 
-def upscaled_connections():
+def created_unstructured_grid(structured_map):
 
-    total_cells = Upscaling.NCx * Upscaling.NCy
+    total_coarse_cells = Upscaling.NCy * Upscaling.NCx
+    merged_cells = structured_map[1] + structured_map[2]
+    num_merged_cells = 1
 
-    upscaled_reservior = np.arange(1, Upscaling.NCx * Upscaling.NCy + 1).reshape(Upscaling.NCx, Upscaling.NCy)
+    unstructured_grid = {}
+
+    unstructured_grid[1] = merged_cells
+
+    for i in range(2, total_coarse_cells):
+
+        unstructured_grid[i] = structured_map[i + 1]
+
+    return unstructured_grid, num_merged_cells
+
+
+def create_coarse_grid():
+
+    grid_type = Upscaling.GRID_TYPE
+
+    if grid_type == 'unstructured':
+
+        structured_grid = create_structured_grid()
+        coarse_grid, num_merged_cells = created_unstructured_grid(structured_grid)
     
-    connection_list_x = None
-    connection_list_y = None
+    elif grid_type == 'structured':
+        
+        coarse_grid = create_structured_grid()
+        num_merged_cells = 0
 
-    connection_list_x = Con.Reservior_X_Connection(upscaled_reservior, connection_list_x)
-    connection_list_y = Con.Reservior_Y_Connection(upscaled_reservior, connection_list_y)
+    else:
+        raise ValueError('Invalid grid type provided. Please enter "unstructued" or "structured"."')
+    
+    return coarse_grid, num_merged_cells
 
-    connections_x = Con.Neighbor_X_Values_Matrix(connection_list_x, total_cells)
-    connections_y = Con.Neighbor_Y_Values_Matrix(connection_list_y, total_cells)
 
-    return connections_x, connections_y
+def coarse_connections(coarse_map, connection_fine):
+
+    coarse_cell_connection = {coarse_id: [] for coarse_id in coarse_map.keys()}
+
+    num_coarse_cells = len(coarse_map)
+
+    for i in range(1, num_coarse_cells + 1):
+        for j in range(i + 1, num_coarse_cells + 1):
+
+            fine_cells_i = coarse_map[i]
+            fine_cells_j_set = set(coarse_map[j])
+
+            connection_found = False
+
+            for fine_cell_in_i in fine_cells_i:
+
+                neighbors = get_fine_cell_neighbors(fine_cell_in_i, connection_fine)
+
+                for neighbor in neighbors:
+                    if neighbor in fine_cells_j_set:
+                        coarse_cell_connection[i].append(j)
+                        coarse_cell_connection[j].append(i)
+
+                        connection_found = True
+                        break
+
+                if connection_found:
+                    break
+
+    return coarse_cell_connection
+        
+
+def get_fine_cell_neighbors(fine_cell_i, fine_connection):
+
+    row_index = fine_cell_i - 1
+    neighbors = []
+
+    x_neighbors_row = fine_connection[row_index, 1:]
+    for neighbor in x_neighbors_row:
+        if neighbor != 0:
+            neighbors.append(neighbor)
+
+    return neighbors
 
 
 def coarse_well_locations(coarse_grid_map, well_index):
@@ -110,28 +174,40 @@ def upscaled_porosity_field(coarse_map, porosity_field):
     return upscaled_porosity
 
 
-def solve_local_problems(coarse_grid_map, connections_x, connections_y, delta_vals, perm_field):
+def solve_local_problems(coarse_grid_map, coarse_connections_x, coarse_connections_y, delta_vals, perm_field):
 
-    upscaled_transmissbility = {}
+    coarse_transmissibility = {}
 
-    for i in range(1, Upscaling.NCx * Upscaling.NCy + 1):
-        
-        center_cell = i
-        x_neighbor = next((num for num in connections_x[center_cell - 1, 1:] if num > i), None)
-        y_neighbor = next((num for num in connections_y[center_cell - 1, 1:] if num > i), None)
+    # Process X-connections
+    for center_cell, x_neighbors_list in coarse_connections_x.items():
+        # Loop through the neighbors that were found for this cell
+        for neighbor in x_neighbors_list:
+            
+            # --- FIX 2: Prevent double-counting ---
+            # We only calculate the transmissibility for a pair (i, j) if i < j.
+            # This ensures each pair is processed only once.
+            if center_cell < neighbor:
+                
+                T_x_upscaled = upscaled_transmissibility(coarse_grid_map, center_cell, neighbor, delta_vals, 'x', perm_field)
+                
+                # Store the result with the canonical key (smaller, larger)
+                coarse_transmissibility[(center_cell, neighbor)] = T_x_upscaled
 
-        # If neighbor == None, then there is no neighbor in that direction
+    # Process Y-connections
+    for center_cell, y_neighbors_list in coarse_connections_y.items():
+        for neighbor in y_neighbors_list:
+            
+            # Apply the same check to prevent double-counting
+            if center_cell < neighbor:
+                
+                T_y_upscaled = upscaled_transmissibility(coarse_grid_map, center_cell, neighbor, delta_vals, 'y', perm_field)
+                
+                # Store the result
+                coarse_transmissibility[(center_cell, neighbor)] = T_y_upscaled
 
-        if x_neighbor is not None:
-            T_x_upscaled = upscaled_transmissibility(coarse_grid_map, center_cell, x_neighbor, delta_vals, 'x', perm_field)
-            upscaled_transmissbility[(center_cell, x_neighbor)] = T_x_upscaled
+    # print(coarse_transmissibility)
 
-        if y_neighbor is not None:
-            T_y_upscaled = upscaled_transmissibility(coarse_grid_map, center_cell, y_neighbor, delta_vals, 'y', perm_field)
-            upscaled_transmissbility[(center_cell, y_neighbor)] = T_y_upscaled
-
-
-    return upscaled_transmissbility
+    return coarse_transmissibility
 
 
 def upscaled_transmissibility(coarse_grid_map, coarse_cell_i, coarse_cell_j, delta_vals, direction, perm_field):
@@ -141,16 +217,8 @@ def upscaled_transmissibility(coarse_grid_map, coarse_cell_i, coarse_cell_j, del
     key_j = int(coarse_cell_j)
 
     fine_cells_i = coarse_grid_map.get(key_i)
-    if fine_cells_i is None:
-        fine_cells_i = coarse_grid_map.get(int(coarse_cell_i))
-    if fine_cells_i is None:
-        raise KeyError(f"Coarse cell {coarse_cell_i} not found in coarse_grid_map keys {list(coarse_grid_map.keys())[:10]}...")
 
     fine_cells_j = coarse_grid_map.get(key_j)
-    if fine_cells_j is None:
-        fine_cells_j = coarse_grid_map.get(int(coarse_cell_j))
-    if fine_cells_j is None:
-        raise KeyError(f"Coarse cell {coarse_cell_j} not found in coarse_grid_map keys {list(coarse_grid_map.keys())[:10]}...")
     
     local_domain = set(fine_cells_i + fine_cells_j)
 

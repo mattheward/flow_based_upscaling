@@ -36,11 +36,11 @@ def main():
     perm_field = M.grid_permeability()
     porosity_field = M.grid_porosity()
     accumulation = Calc.Accumulation(cell_volume, delta_vals[3], porosity_field)
+    connections_x_fine, connections_y_fine = Con.Initialize_Connections(total_cells)
     well_index_fine_vals = Con.Well_Index()
 
     # Intialize matrices and connections
     p0 = M.Initalize_P_Vector(total_cells)
-    connections_x_fine, connections_y_fine = Con.Initialize_Connections(total_cells)
     WBHP_vals = [[] for _ in range(len(Grid.WELLS))] # Creates list of list to create multiple plots if have multiple wells
 
     # Initialize matrices
@@ -112,15 +112,23 @@ def main():
 
     # ========== Coarse Simulator ==========
 
-    coarse_map = Up.create_upscaled_grid()
+    coarse_map, num_merged_cells = Up.create_coarse_grid()
     # print("Coarse Map:", coarse_map)
+    # Pl.plot_coarse_grid(coarse_map)
     num_coarse_cells = Cs.Total_Coarse_Cells_2D()
     delta_coarse_vals = Cs.Delta_Coarse_Values()
     coarse_cell_volume = Cs.Coarse_Cell_Volume(delta_coarse_vals)
     coarse_porosity_field = Up.upscaled_porosity_field(coarse_map, porosity_field)
     coarse_accumulation = Calc.Accumulation(coarse_cell_volume, delta_coarse_vals[3], coarse_porosity_field)
     well_index_coarse_vals = Up.coarse_well_locations(coarse_map, well_index_fine_vals)
-    connections_x_coarse, connections_y_coarse = Up.upscaled_connections()
+    connections_x_coarse = Up.coarse_connections(coarse_map, connections_x_fine)
+    connections_y_coarse = Up.coarse_connections(coarse_map, connections_y_fine)
+    # print('==== connections x =====')
+    # print(connections_x_coarse)
+    
+    # print('==== connections y =====')
+    # print(connections_y_coarse)
+    
 
     upscaled_well_transmissibility = Up.coarse_well_transmissibilities(coarse_map, well_index_coarse_vals, well_index_fine_vals, delta_vals, perm_field)
     upscaled_transmissbility = Up.solve_local_problems(coarse_map, connections_x_coarse, connections_y_coarse, delta_vals, perm_field)
@@ -128,7 +136,7 @@ def main():
     p0_c = M.Initalize_P_Vector(num_coarse_cells)
 
     b_vector_c = M.RHS_Vector(coarse_accumulation, p0_c)
-    a_matrix_c = Cs.Form_A_Matrix_Coarse(connections_x_coarse, connections_y_coarse, upscaled_transmissbility, coarse_accumulation, num_coarse_cells)
+    a_matrix_c = Cs.Form_A_Matrix_Coarse(upscaled_transmissbility, coarse_accumulation, num_coarse_cells)
 
     a_matrix_c, b_vector_c = Up.coarse_well_treamtment(upscaled_well_transmissibility, well_index_coarse_vals, a_matrix_c, b_vector_c, current_time=0)
 
@@ -140,7 +148,7 @@ def main():
 
         p_n_c = p_new_c
         b_vector_c = M.RHS_Vector(coarse_accumulation, p_n_c)
-        a_matrix_c = Cs.Form_A_Matrix_Coarse(connections_x_coarse, connections_y_coarse, upscaled_transmissbility, coarse_accumulation, num_coarse_cells)
+        a_matrix_c = Cs.Form_A_Matrix_Coarse(upscaled_transmissbility, coarse_accumulation, num_coarse_cells)
 
         a_matrix_c, b_vector_c = Up.coarse_well_treamtment(upscaled_well_transmissibility, well_index_coarse_vals, a_matrix_c, b_vector_c, current_time)
 
@@ -148,7 +156,15 @@ def main():
 
     for w in Grid.WELLS:
         print(f"Final pressure of {w}:", p_new_c[well_index_coarse_vals[w] - 1])
+        print('\n ----------------------- \n')
 
+        coarse_well_index = well_index_coarse_vals[w] - 1
+        p_block_avg = p_new_c[coarse_well_index]
+        well_rate = Grid.WELLS[w]['rates']
+        WI = upscaled_well_transmissibility[w]
+        well_BHP = p_block_avg - (well_rate / WI)
+        print(f"Final pressure of {w}:", well_BHP)
+        
     time.sleep(1) # Stops timer
     stop_time2 = time.time() # Captures stop time
     elapsed_time = stop_time2 - start_time2 # Finds time taken to run
@@ -157,11 +173,12 @@ def main():
 
 
     Pl.fine_scale_pressure_map(p_new_f)
-    Pl.coarse_scale_pressure_map(p_new_c)
-    Pl.compare_pressure_fields(p_new_f, p_new_c, coarse_map)
+    reshaped_coarse_pressure = Pl.reshape_coarse_pressure_vector(p_new_c, coarse_map)
+    Pl.coarse_scale_pressure_map(reshaped_coarse_pressure)
+    Pl.compare_pressure_fields(p_new_f, reshaped_coarse_pressure, coarse_map)
     # Pl.plot_coarse_grid(coarse_map)
-    # Pl.perm_field_plot(perm_field)
-    Pl.porosity_field_plot(porosity_field)
+    Pl.perm_field_plot(perm_field)
+    # Pl.porosity_field_plot(porosity_field)
 
     # # Creates plot for pressure at bottom of well(s)
     # plt.figure() 

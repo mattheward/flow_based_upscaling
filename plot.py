@@ -11,11 +11,13 @@ This file is to create all the matrices (A, p, and b)
 import numpy as np
 import scipy.sparse as sp
 import matplotlib.pyplot as plt
+from scipy.spatial import ConvexHull
 
 # Files
 from config import Rock, Grid, Field, Simulation, Upscaling
 import calculations as Calc
 import connections as Con
+import upscaling as Up
 
 def fine_scale_pressure_map(p_new_f):
 
@@ -33,14 +35,61 @@ def fine_scale_pressure_map(p_new_f):
     plt.show()
 
 
-def coarse_scale_pressure_map(p_new_c):
+def reshape_coarse_pressure_vector(p_coarse, coarse_map):
 
     # Shape coarse as (NCy, NCx): rows = y, cols = x
-    Pressure_Grid_Coarse = p_new_c.reshape((Upscaling.NCy, Upscaling.NCx))
+    """
+    Creates a 2D plottable array from a 1D pressure vector of an unstructured grid.
 
+    Args:
+        p_coarse (np.array): The 1D vector of coarse cell pressures.
+        coarse_map (dict): The map from coarse_id to a list of its fine_ids.
+        grid_config (class): Your grid configuration object (e.g., Grid).
+
+    Returns:
+        np.array: A 2D array ready for plotting with imshow.
+    """
+
+    Nx = Upscaling.NCx
+    Ny = Upscaling.NCy
+    
+    structured_grid = Up.create_structured_grid()
+
+    # --- Step 1: Create an empty canvas based on the FINE grid dimensions ---
+    reshaped_coarse_pressure = np.full((Ny, Nx), np.nan) # Use np.nan as a placeholder    
+
+    for cell_structured in structured_grid.keys():
+
+        location_found = False
+
+        fine_cells_structured = set(structured_grid[cell_structured])
+
+        for cell_unstructured in coarse_map.keys():
+
+            fine_cells_unstructured = set(coarse_map[cell_unstructured])
+
+            for cell in fine_cells_structured:
+                if cell in fine_cells_unstructured:
+                    cell_id = cell_structured - 1
+                    j = cell_id // Nx
+                    i = cell_id % Nx
+
+                    reshaped_coarse_pressure[j, i] = p_coarse[cell_unstructured - 1]
+
+                    location_found = True
+                    break
+            
+            if location_found:
+                break
+
+    return reshaped_coarse_pressure
+
+
+def coarse_scale_pressure_map(reshaped_coarse_pressure):
+            
     # Creates plot for pressure map
     plt.figure()
-    plt.imshow(Pressure_Grid_Coarse, cmap = 'viridis', interpolation = 'nearest', origin = 'lower')
+    plt.imshow(reshaped_coarse_pressure, cmap = 'viridis', interpolation = 'nearest', origin = 'lower')
     plt.colorbar(label = 'Pressure (psi)' )
     plt.title('Coarse Scale Pressure Distribution in Reservoir')
     plt.xlabel('X Direction')
@@ -48,8 +97,8 @@ def coarse_scale_pressure_map(p_new_c):
 
     plt.show()
 
-
-def compare_pressure_fields(p_new_f, p_new_c, coarse_map):
+    
+def compare_pressure_fields(p_new_f, Pressure_Grid_Coarse, coarse_map):
     """
     Compares the final pressure fields by averaging the fine grid and plotting
     it alongside the coarse grid result and an error map.
@@ -57,14 +106,16 @@ def compare_pressure_fields(p_new_f, p_new_c, coarse_map):
     NCx = Upscaling.NCx
     NCy = Upscaling.NCy
 
-    # Ensure coarse grid is shaped (NCy, NCx): rows = y, cols = x
-    Pressure_Grid_Coarse = p_new_c.reshape((NCy, NCx))
+    structure_grid = Up.create_structured_grid()
+
+    # # Ensure coarse grid is shaped (NCy, NCx): rows = y, cols = x
+    # Pressure_Grid_Coarse = p_new_c.reshape((NCy, NCx))
 
     # We'll compute averaged fine pressures directly from the 1D fine vector
     # coarse_map uses 0-based fine IDs (created by `create_upscaled_grid`).
-    fine_pressure_averaged = np.zeros((NCy, NCx))
+    fine_pressure_averaged = []
 
-    for coarse_id, fine_cell_ids in coarse_map.items():
+    for coarse_id, fine_cell_ids in structure_grid.items():
         # coarse_map currently stores 1-based fine IDs (created elsewhere),
         # convert to 0-based indices for direct indexing into p_new_f
         pressures_in_block = [p_new_f[fine_id - 1] for fine_id in fine_cell_ids]
@@ -74,12 +125,22 @@ def compare_pressure_fields(p_new_f, p_new_c, coarse_map):
         zero_based_coarse = coarse_id - 1
         jc = zero_based_coarse // NCx
         ic = zero_based_coarse % NCx
-        fine_pressure_averaged[jc, ic] = avg_pressure
+        fine_pressure_averaged.append(avg_pressure)
+
+    coarse_pressure_1 = fine_pressure_averaged[0]
+    coarse_pressure_2 = fine_pressure_averaged[1]
+    merged_pressure = np.mean([coarse_pressure_1, coarse_pressure_2])
+
+    fine_pressure_averaged[0] = merged_pressure
+    fine_pressure_averaged[1] = merged_pressure
+
+    fine_pressure_averaged = np.array(fine_pressure_averaged)
+    fine_pressure_averaged_grid = fine_pressure_averaged.reshape((NCy, NCx))
         
     # 2. Calculate the Error Map
     # Percentage error (guard division by zero)
     with np.errstate(divide='ignore', invalid='ignore'):
-        error_map = np.abs(fine_pressure_averaged - Pressure_Grid_Coarse) / fine_pressure_averaged * 100
+        error_map = np.abs(fine_pressure_averaged_grid - Pressure_Grid_Coarse) / fine_pressure_averaged_grid * 100
         error_map = np.nan_to_num(error_map, nan=0.0, posinf=0.0, neginf=0.0)
     
     # 3. Plotting
@@ -91,7 +152,7 @@ def compare_pressure_fields(p_new_f, p_new_c, coarse_map):
     
     # Plot 1: Averaged Fine Grid ("Truth")
     ax1 = axes[0]
-    im1 = ax1.imshow(fine_pressure_averaged, cmap='viridis', interpolation='nearest', origin='lower', vmin=p_min, vmax=p_max)
+    im1 = ax1.imshow(fine_pressure_averaged_grid, cmap='viridis', interpolation='nearest', origin='lower', vmin=p_min, vmax=p_max)
     ax1.set_title('Averaged Fine Grid Pressure ("Truth")')
     ax1.set_xlabel('Coarse Cell X')
     ax1.set_ylabel('Coarse Cell Y')
@@ -145,36 +206,58 @@ def plot_coarse_grid(coarse_map):
             
     fig, ax = plt.subplots(figsize=(10, 8))
     cmap = plt.get_cmap('viridis', NCx * NCy)
-    # Use origin='lower' so row 0 appears at the bottom (Cartesian convention)
     mat = ax.imshow(visualization_array, cmap=cmap, interpolation='none', aspect='equal', origin='lower')
     
-    block_size_x = Nx // NCx
-    block_size_y = Ny // NCy
-
-    ax.set_xticks(np.arange(-.5, Nx, 1), minor=True)
-    ax.set_yticks(np.arange(-.5, Ny, 1), minor=True)
-    ax.grid(which='minor', color='w', linestyle='-', linewidth=0.5, alpha=0.3)
-    ax.set_xticks(np.arange(-.5, Nx, block_size_x))
-    ax.set_yticks(np.arange(-.5, Ny, block_size_y))
-    ax.grid(which='major', color='black', linestyle='-', linewidth=2)
-
-    for coarse_id in coarse_map.keys():
-        zero_based = coarse_id - 1
-        jc = zero_based // NCx
-        ic = zero_based % NCx
+    for coarse_id, fine_cells in coarse_map.items():
         
-        # Calculate text position in Cartesian coordinates
-        center_x = ic * block_size_x + block_size_x / 2 - 0.5
-        center_y = jc * block_size_y + block_size_y / 2 - 0.5
+        # For each fine cell, find its four corners.
+        all_corners = []
+        for fine_id in fine_cells:
+            idx = fine_id - 1
+            j = idx // Nx
+            i = idx % Nx
+            
+            # Corners are at (i-0.5, j-0.5), (i+0.5, j+0.5), etc. for plotting
+            all_corners.append([i - 0.5, j - 0.5])
+            all_corners.append([i + 0.5, j - 0.5])
+            all_corners.append([i - 0.5, j + 0.5])
+            all_corners.append([i + 0.5, j + 0.5])
         
-        # center_y is already in Cartesian coordinates (0 = bottom), matching origin='lower'
+        all_corners = np.array(all_corners)
+        
+        # Use ConvexHull to find the points that form the outer boundary.
+        # This is a robust way to find the "outline" of a shape made of squares.
+        hull = ConvexHull(all_corners)
+        
+        # Plot the lines of the convex hull
+        for simplex in hull.simplices:
+            ax.plot(all_corners[simplex, 0], all_corners[simplex, 1], 'k-', linewidth=2)
+
+    for coarse_id, fine_cells in coarse_map.items():
+        
+        i_coords = []
+        j_coords = []
+        for fine_id in fine_cells:
+            idx = fine_id - 1
+            j_coords.append(idx // Nx)
+            i_coords.append(idx % Nx)
+        
+        # The center is the average of the fine cell coordinates.
+        center_x = np.mean(i_coords)
+        center_y = np.mean(j_coords)
+        
         ax.text(center_x, center_y, str(coarse_id), 
-                ha='center', va='center', color='white', fontsize=12,
-                bbox=dict(boxstyle="round,pad=0.3", fc='black', ec='black', lw=1, alpha=0.4))
+                ha='center', va='center', color='white', fontsize=12, weight='bold',
+                bbox=dict(boxstyle="circle,pad=0.3", fc='black', ec='white', lw=1, alpha=0.6))
 
-    ax.set_title(f"Cartesian Grid ({Nx}x{Ny}) to ({NCx}x{NCy})", fontsize=16)
-    ax.set_xlabel("Fine Cell Index (i)")
-    ax.set_ylabel("Fine Cell Index (j)")
+    # --- Part 4: Final Plot Formatting ---
+    ax.set_title(f"Unstructured Coarse Grid Visualization", fontsize=16)
+    # ax.set_xlabel("Fine Cell Index (i)")
+    # ax.set_ylabel("Fine Cell Index (j)")
+    # ax.set_xticks(np.arange(0, Nx, 1))
+    # ax.set_yticks(np.arange(0, Ny, 1))
+    # ax.set_xlim(-0.5, Nx - 0.5)
+    # ax.set_ylim(-0.5, Ny - 0.5)
     
     # origin='lower' already places 0 at the bottom; no inversion is needed.
     
