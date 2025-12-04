@@ -123,14 +123,8 @@ def main():
     well_index_coarse_vals = Up.coarse_well_locations(coarse_map, well_index_fine_vals)
     connections_x_coarse = Up.coarse_connections(coarse_map, connections_x_fine)
     connections_y_coarse = Up.coarse_connections(coarse_map, connections_y_fine)
-    # print('==== connections x =====')
-    # print(connections_x_coarse)
-    
-    # print('==== connections y =====')
-    # print(connections_y_coarse)
-    
 
-    upscaled_well_transmissibility = Up.coarse_well_transmissibilities(coarse_map, well_index_coarse_vals, well_index_fine_vals, delta_vals, perm_field)
+    upscaled_well_transmissibility = Up.coarse_well_transmissibilities(coarse_map, well_index_coarse_vals, well_index_fine_vals, delta_vals, delta_coarse_vals, perm_field)
     upscaled_transmissbility = Up.solve_local_problems(coarse_map, connections_x_coarse, connections_y_coarse, delta_vals, perm_field)
 
     p0_c = M.Initalize_P_Vector(num_coarse_cells)
@@ -155,16 +149,41 @@ def main():
         p_new_c = spla.spsolve(a_matrix_c, b_vector_c)
 
     for w in Grid.WELLS:
-        print(f"Final pressure of {w}:", p_new_c[well_index_coarse_vals[w] - 1])
-        print('\n ----------------------- \n')
+        # print(f"Final pressure of {w}:", p_new_c[well_index_coarse_vals[w] - 1])
+        # print('\n ----------------------- \n')
 
         coarse_well_index = well_index_coarse_vals[w] - 1
         p_block_avg = p_new_c[coarse_well_index]
-        well_rate = Grid.WELLS[w]['rates']
+
         WI = upscaled_well_transmissibility[w]
-        well_BHP = p_block_avg - (well_rate / WI)
-        print(f"Final pressure of {w}:", well_BHP)
+
+        if Grid.WELLS[w]['type'] == 'injector':
+            well_rate = Grid.WELLS[w]['rates'][0]
+        elif Grid.WELLS[w]['type'] == 'producer':
+            # For a pressure-controlled producer, we calculate the rate using the results.
+            # This is the correct formula: q = WI * (p_block - p_bhp)
+            well_rate = WI * (p_block_avg - Grid.BHP)
         
+        else:
+            raise ValueError('Improper well type given')
+
+        # --- Now, perform the VALIDATION CHECK ---
+        # We back-calculate the BHP using the results we just got.
+        # This value SHOULD be very close to the target BHP.
+
+        if Grid.WELLS[w]['type'] == 'injector':
+            # For an injector: p_bhp = p_block + (q / WI)
+            # Note the '+' sign because injection pressure is higher than block pressure.
+            back_calculated_BHP = p_block_avg + (well_rate / WI)
+            print(f'Injector "{w}" Back-Calculated BHP: {back_calculated_BHP:.2f} psi')
+
+        elif Grid.WELLS[w]['type'] == 'producer':
+            # For a producer: p_bhp = p_block - (q / WI)
+            back_calculated_BHP = p_block_avg - (well_rate / WI)
+            print(f"Producer '{w}' Target BHP was: {Grid.BHP:.2f} psi")
+            print(f"Producer '{w}' Back-Calculated BHP is: {back_calculated_BHP:.2f} psi")
+
+
     time.sleep(1) # Stops timer
     stop_time2 = time.time() # Captures stop time
     elapsed_time = stop_time2 - start_time2 # Finds time taken to run
@@ -172,12 +191,12 @@ def main():
 
 
 
-    Pl.fine_scale_pressure_map(p_new_f)
+    # Pl.fine_scale_pressure_map(p_new_f)
     reshaped_coarse_pressure = Pl.reshape_coarse_pressure_vector(p_new_c, coarse_map)
     Pl.coarse_scale_pressure_map(reshaped_coarse_pressure)
     Pl.compare_pressure_fields(p_new_f, reshaped_coarse_pressure, coarse_map)
     # Pl.plot_coarse_grid(coarse_map)
-    Pl.perm_field_plot(perm_field)
+    # Pl.perm_field_plot(perm_field)
     # Pl.porosity_field_plot(porosity_field)
 
     # # Creates plot for pressure at bottom of well(s)

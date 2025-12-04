@@ -52,13 +52,28 @@ def B_Interface_Calc(B1, B2):
 
 def well_transmissibility(delta_values, perm_field, well_index):
 
-    r_o = 0.208 * delta_values[0]
+    k_x = perm_field['x'][well_index - 1]
+    k_y = perm_field['y'][well_index - 1]
+    delta_x = delta_values[0]
+    delta_y = delta_values[1]
+
+    r_o = calc_ro(k_x, k_y, delta_x, delta_y)
     r_w = Grid.WELL_RADIUS
     s = 0
-    k_avg = math.sqrt(perm_field['x'][well_index - 1] * perm_field['y'][well_index - 1])
+    k_avg = math.sqrt(k_x * k_y)
 
-    return (2 * np.pi * k_avg * delta_values[2] / Fluid.viscosity) * (1 / (np.log(r_o/r_w) + s))
+    return ((2 * np.pi * k_avg * delta_values[2] / Fluid.viscosity) * (1 / (np.log(r_o/r_w) + s)))
 
+
+def calc_ro(kx, ky, delta_x, delta_y):
+
+    perm_sqrt_1 = math.sqrt(ky/kx)
+    perm_sqrt_2 = math.sqrt(kx/ky)
+
+    numerator = math.sqrt(((perm_sqrt_1)*(delta_x**2))+((perm_sqrt_2)*(delta_y**2)))
+    denominator = (ky/kx)**0.25 + (kx/ky)**0.25
+
+    return 0.28 * (numerator / denominator)
 
 # Calculates the accumulation number
 def Accumulation(Cell_Volume, delta_t, porosity_field):
@@ -126,3 +141,13 @@ def Flow_Rate(p_vals):
 def Time_To_Stop(delta_t):
 
     return Simulation.number_of_steps - ((Simulation.run_time - Simulation.stop_time) / delta_t)
+
+
+def upscaled_well_transmissbility(r_o, kx, ky, delta_z):
+
+    r_w = Grid.WELL_RADIUS
+    numerator = 2*np.pi*math.sqrt(kx*ky)*delta_z
+    denominator = np.log(r_o / r_w)
+
+    return (numerator / denominator) / 887
+    

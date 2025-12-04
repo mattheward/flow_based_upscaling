@@ -69,7 +69,7 @@ class Grid: # Simulation grid properties
             'type': 'producer',
             'location': [43, 23],
             'control': 'rate',
-            'rates': 2000  # [STB/day]
+            'bhp': 2000  # [STB/day]
         }
     }
 

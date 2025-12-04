@@ -1,5 +1,9 @@
 import numpy as np
 
-test = np.array([1, 2, 3, 4])
+my_set = {1, 2, 3}
+my_list = [4, 5, 6]
 
-print(test.reshape((2, 2)))
+# Adding list to the set
+my_set.update(my_list)
+
+print(my_set)

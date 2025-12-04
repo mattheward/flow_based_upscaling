@@ -12,6 +12,7 @@ This code contains the logic for the flow based upscaling.
 import matplotlib.pyplot as plt
 import numpy as np
 import math
+from scipy.stats import gmean
 
 # Import Files
 from config import Grid, Upscaling, Simulation
@@ -205,7 +206,6 @@ def solve_local_problems(coarse_grid_map, coarse_connections_x, coarse_connectio
                 # Store the result
                 coarse_transmissibility[(center_cell, neighbor)] = T_y_upscaled
 
-    # print(coarse_transmissibility)
 
     return coarse_transmissibility
 
@@ -347,7 +347,7 @@ def upscaled_transmissibility(coarse_grid_map, coarse_cell_i, coarse_cell_j, del
     return T_upscaled
 
 
-def upscaled_well_transmissibility(coarse_grid_map, well_index_coarse, well_index_fine, well_rate, delta_vals, perm_field):
+def upscaled_rate_well_transmissibility(coarse_grid_map, well_index_coarse, well_index_fine, well_rate, delta_vals, perm_field):
 
     core_domain = set(coarse_grid_map[well_index_coarse])
 
@@ -455,16 +455,8 @@ def upscaled_well_transmissibility(coarse_grid_map, well_index_coarse, well_inde
             A_local[local_idx, neighbor_local_idx] = -T_fine_y
             A_local[local_idx, local_idx] += T_fine_y
 
-    # Accept either 0-based or 1-based fine indices for the well
-    if well_index_fine in global_to_local_map:
-        local_well_idx = global_to_local_map[well_index_fine]
-    elif (well_index_fine - 1) in global_to_local_map:
-        local_well_idx = global_to_local_map[well_index_fine - 1]
-    elif (well_index_fine + 1) in global_to_local_map:
-        # defensive: sometimes callers pass 0-based when others pass 1-based
-        local_well_idx = global_to_local_map[well_index_fine + 1]
-    else:
-        raise KeyError(f"Well fine-index {well_index_fine} not found in padded domain keys {list(global_to_local_map.keys())}")
+
+    local_well_idx = global_to_local_map[well_index_fine]
 
     b_local[local_well_idx] += well_rate
 
@@ -512,21 +504,62 @@ def upscaled_well_transmissibility(coarse_grid_map, well_index_coarse, well_inde
     return WI_star
 
 
-def coarse_well_transmissibilities(coarse_map, well_index_coarse_vals, well_index_fine_vals, delta_vals, perm_field):
+def upscaled_bhp_well_transmissbility(coarse_grid_map, well_index_coarse, coarse_delta_vals, perm_field):
+
+    core_domain = set(coarse_grid_map[well_index_coarse])
+    delta_x = coarse_delta_vals[0]
+    delta_y = coarse_delta_vals[1]
+    delta_z = coarse_delta_vals[2]
+
+    upscaled_kx = upscale_permeability(core_domain, perm_field, 'x')
+    upsacled_ky = upscale_permeability(core_domain, perm_field, 'y')
+
+    r_o = Calc.calc_ro(upscaled_kx, upsacled_ky, delta_x, delta_y)
+    WI = Calc.upscaled_well_transmissbility(r_o, upscaled_kx, upsacled_ky, delta_z)
+
+    return WI
+
+
+def upscale_permeability(fine_cells, perm_field, direction):
+
+    core_domain_perm_vals = []
+
+    for i in fine_cells:
+        perm_val = perm_field[direction][i - 1]
+        core_domain_perm_vals.append(perm_val)
+
+    upscaled_perm = gmean(core_domain_perm_vals)
+
+    return upscaled_perm
+
+
+def find_avg_pressure(p_local, global_to_local_map, fine_cells):
+
+    coarse_pressure_block = [p_local[global_to_local_map[gid]] for gid in fine_cells]
+    return np.mean(coarse_pressure_block)
+
+
+def coarse_well_transmissibilities(coarse_map, well_index_coarse_vals, well_index_fine_vals, delta_vals, coarse_delta_vals, perm_field):
 
     upscaled_well_transmissibilities = {}
 
     for well, well_index_c in well_index_coarse_vals.items():
         
         well_type = Grid.WELLS[well]['type']
+        well_index_fine = well_index_fine_vals[well]
 
         if well_type == 'injector':
-            well_rate = Grid.WELLS[well]['rates'][0]
-        elif well_type == 'producer':
-            well_rate = 1
 
-        well_index_fine = well_index_fine_vals[well]
-        WI_star = upscaled_well_transmissibility(coarse_map, well_index_c, well_index_fine, well_rate, delta_vals, perm_field)
+            well_rate = Grid.WELLS[well]['rates'][0]
+            WI_star = upscaled_rate_well_transmissibility(coarse_map, well_index_c, well_index_fine, well_rate, delta_vals, perm_field)
+
+        elif well_type == 'producer':
+            
+            WI_star = upscaled_bhp_well_transmissbility(coarse_map, well_index_c, coarse_delta_vals, perm_field)
+
+        else:
+            raise ValueError('Incorrect well type given. Please select "producer" or "injector".')
+        
         upscaled_well_transmissibilities[well] = WI_star
 
     return upscaled_well_transmissibilities
