@@ -55,7 +55,7 @@ class Grid: # Simulation grid properties
     WELLS = {
         'well1': {
             'type': 'injector',
-            'location': [28, 41],
+            'location': [23, 41],
             'control': 'rate',
             'rates': [900]  # [STB/day]
         },

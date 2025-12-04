@@ -11,6 +11,7 @@ This file is to create all the matrices (A, p, and b)
 # Packages
 import numpy as np
 import scipy.sparse as sp
+from scipy.ndimage import zoom
 
 # Files
 from config import Rock, Grid, Field, Simulation
@@ -81,6 +82,16 @@ def grid_permeability():
 
     perm_x_field = np.array(perm_x_field)
 
+    if Grid.NX_total == 100:
+        perm_x_grid = perm_x_field.reshape(50, 50)
+
+        epsilon = 1e-10
+
+        log_perm_grid_50x50 = np.log10(perm_x_grid + epsilon)
+        log_perm_grid_100x100 = zoom(log_perm_grid_50x50, zoom=2.0, order=3)
+        perm_x_field = 10**log_perm_grid_100x100
+
+
     perm_y_field = []
     file_name_y = Rock.K_Y_FILE
 
@@ -98,10 +109,23 @@ def grid_permeability():
     except Exception as e:
         print(f"An unexpected error occurred: {e}")
 
+    
     perm_y_field = np.array(perm_y_field)
+
+    if Grid.NX_total == 100:
+        perm_y_grid = perm_y_field.reshape(50, 50)
+
+        epsilon = 1e-10
+
+        log_perm_grid_50x50 = np.log10(perm_y_grid + epsilon)
+        log_perm_grid_100x100 = zoom(log_perm_grid_50x50, zoom=2.0, order=3)
+        perm_y_field = 10**log_perm_grid_100x100
+
 
     perm_field['x'] = perm_x_field.ravel()
     perm_field['y'] = perm_y_field.ravel()
+
+   
 
     return perm_field # Returns 1D arrays of permeability values
 
@@ -126,6 +150,15 @@ def grid_porosity():
         print(f"An unexpected error occurred: {e}")
 
     porosity_field = np.array(porosity_field)
+
+    if Grid.NX_total == 100:
+        porosity_grid = porosity_field.reshape(50, 50)
+
+        epsilon = 1e-10
+
+        log_porosity_grid_50x50 = np.log10(porosity_grid + epsilon)
+        log_porosity_grid_100x100 = zoom(log_porosity_grid_50x50, zoom=2.0, order=3)
+        porosity_field = 10**log_porosity_grid_100x100
 
     return porosity_field.ravel()
 

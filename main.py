@@ -28,12 +28,13 @@ def main():
 
     # Start Timer
     start_time = time.time()
-
+  
     # Define Values
     total_cells = Calc.Total_Cells_2D()
     delta_vals = Calc.Delta_Values()
     cell_volume = Calc.Cell_Volume(delta_vals)
     perm_field = M.grid_permeability()
+    Pl.perm_field_plot(perm_field)
     porosity_field = M.grid_porosity()
     accumulation = Calc.Accumulation(cell_volume, delta_vals[3], porosity_field)
     connections_x_fine, connections_y_fine = Con.Initialize_Connections(total_cells)

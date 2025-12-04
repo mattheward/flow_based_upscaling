@@ -9,10 +9,11 @@ This code contains the logic for the flow based upscaling.
 '''
 
 # Import Packages
-import matplotlib.pyplot as plt
 import numpy as np
-import math
+import concurrent.futures
+import matplotlib.pyplot as plt
 from scipy.stats import gmean
+from tqdm import tqdm
 
 # Import Files
 from config import Grid, Upscaling, Simulation
@@ -177,7 +178,30 @@ def upscaled_porosity_field(coarse_map, porosity_field):
 
 def solve_local_problems(coarse_grid_map, coarse_connections_x, coarse_connections_y, delta_vals, perm_field):
 
+    # jobs = []
+
+    # for center_cell, x_neighbors_list in coarse_connections_x.items():
+    #     for neighbor in x_neighbors_list:
+    #         if center_cell < neighbor:
+    #             args = (coarse_grid_map, center_cell, neighbor, delta_vals, 'x', perm_field)
+    #             jobs.append(args)
+    
+    # for center_cell, y_neighbors_list in coarse_connections_y.items():
+    #     for neighbor in y_neighbors_list:
+    #         if center_cell < neighbor:
+    #             args = (coarse_grid_map, center_cell, neighbor, delta_vals, 'y', perm_field)
+    #             jobs.append(args)
+
     coarse_transmissibility = {}
+
+    # with concurrent.futures.ProcessPoolExecutor() as executor:
+
+    #     results_iterator = tqdm(executor.map(transmissibility_worker, jobs), total=len(jobs))
+
+    #     for result_pair in results_iterator:
+    #         (center_cell, neighbor), T_upscaled = result_pair
+    #         # Store the result using the canonical key (smaller, larger)
+    #         coarse_transmissibility[(center_cell, neighbor)] = T_upscaled
 
     # Process X-connections
     for center_cell, x_neighbors_list in coarse_connections_x.items():
@@ -672,3 +696,12 @@ def coarse_well_treamtment(upscaled_well_transmissibility, well_index_coarse_val
         pass
 
     return a_matrix_c, b_vector_c
+
+
+def transmissibility_worker(args):
+
+    coarse_map, center_cell, neighbor, delta_vals, direction, perm_field = args
+
+    T_upscaled = upscaled_transmissibility(coarse_map, center_cell, neighbor, delta_vals, direction, perm_field)
+
+    return (center_cell, neighbor), T_upscaled
