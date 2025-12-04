@@ -28,7 +28,7 @@ def fine_scale_pressure_map(p_new_f):
     plt.figure()
     plt.imshow(Pressure_Grid, cmap = 'viridis', interpolation = 'nearest', origin = 'lower')
     plt.colorbar(label = 'Pressure (psi)' )
-    plt.title('Pressure Distribution in Reservoir')
+    plt.title('Fine Grid Pressure Distribution')
     plt.xlabel('X Direction')
     plt.ylabel('Y Direction')
 
@@ -120,19 +120,15 @@ def compare_pressure_fields(p_new_f, Pressure_Grid_Coarse, coarse_map):
         # convert to 0-based indices for direct indexing into p_new_f
         pressures_in_block = [p_new_f[fine_id - 1] for fine_id in fine_cell_ids]
         avg_pressure = np.mean(pressures_in_block)
-
-        # Map 1-based coarse_id -> 0-based (jc, ic)
-        zero_based_coarse = coarse_id - 1
-        jc = zero_based_coarse // NCx
-        ic = zero_based_coarse % NCx
         fine_pressure_averaged.append(avg_pressure)
 
-    coarse_pressure_1 = fine_pressure_averaged[0]
-    coarse_pressure_2 = fine_pressure_averaged[1]
-    merged_pressure = np.mean([coarse_pressure_1, coarse_pressure_2])
+    if Upscaling.GRID_TYPE == 'unstructured':
+        coarse_pressure_1 = fine_pressure_averaged[0]
+        coarse_pressure_2 = fine_pressure_averaged[1]
+        merged_pressure = np.mean([coarse_pressure_1, coarse_pressure_2])
 
-    fine_pressure_averaged[0] = merged_pressure
-    fine_pressure_averaged[1] = merged_pressure
+        fine_pressure_averaged[0] = merged_pressure
+        fine_pressure_averaged[1] = merged_pressure
 
     fine_pressure_averaged = np.array(fine_pressure_averaged)
     fine_pressure_averaged_grid = fine_pressure_averaged.reshape((NCy, NCx))
@@ -142,42 +138,39 @@ def compare_pressure_fields(p_new_f, Pressure_Grid_Coarse, coarse_map):
     with np.errstate(divide='ignore', invalid='ignore'):
         error_map = np.abs(fine_pressure_averaged_grid - Pressure_Grid_Coarse) / fine_pressure_averaged_grid * 100
         error_map = np.nan_to_num(error_map, nan=0.0, posinf=0.0, neginf=0.0)
-    
-    # 3. Plotting
-    fig, axes = plt.subplots(1, 3, figsize=(18, 6))
-    
+        
     # Determine a common color scale for pressures
     p_min = min(fine_pressure_averaged.min(), Pressure_Grid_Coarse.min())
     p_max = max(fine_pressure_averaged.max(), Pressure_Grid_Coarse.max())
-    
-    # Plot 1: Averaged Fine Grid ("Truth")
-    ax1 = axes[0]
-    im1 = ax1.imshow(fine_pressure_averaged_grid, cmap='viridis', interpolation='nearest', origin='lower', vmin=p_min, vmax=p_max)
-    ax1.set_title('Averaged Fine Grid Pressure ("Truth")')
-    ax1.set_xlabel('Coarse Cell X')
-    ax1.set_ylabel('Coarse Cell Y')
-    fig.colorbar(im1, ax=ax1, fraction=0.046, pad=0.04)
-    
-    # Plot 2: Upscaled Coarse Grid ("Model")
-    ax2 = axes[1]
-    im2 = ax2.imshow(Pressure_Grid_Coarse, cmap='viridis', interpolation='nearest', origin='lower', vmin=p_min, vmax=p_max)
-    ax2.set_title('Upscaled Coarse Grid Pressure ("Model")')
-    ax2.set_xlabel('Coarse Cell X')
-    ax2.set_ylabel('Coarse Cell Y')
-    fig.colorbar(im2, ax=ax2, fraction=0.046, pad=0.04)
-    
-    # Plot 3: Error Map
-    ax3 = axes[2]
-    # Use a diverging colormap for errors (e.g., 'coolwarm' or 'bwr')
-    # This centers the "zero error" color (white) and shows positive/negative errors
-    error_max_abs = np.max(np.abs(error_map))
-    im3 = ax3.imshow(error_map, cmap='coolwarm', interpolation='nearest', origin='lower', vmin=0, vmax=error_max_abs)
-    ax3.set_title('Error Map (% Difference)')
-    ax3.set_xlabel('Coarse Cell X')
-    ax3.set_ylabel('Coarse Cell Y')
-    fig.colorbar(im3, ax=ax3, fraction=0.046, pad=0.04, label='Pressure Difference (psi)')
-    
-    plt.tight_layout()
+
+    # --- Plot 1 ---
+    fig, ax = plt.subplots(figsize=(6, 5), constrained_layout=True)
+    im = ax.imshow(fine_pressure_averaged_grid, cmap='viridis', interpolation='nearest', origin='lower', vmin=p_min, vmax=p_max)
+    ax.set_title('Averaged Fine Grid Pressure')
+    ax.set_xlabel('Coarse Cell X')
+    ax.set_ylabel('Coarse Cell Y')
+    cbar = fig.colorbar(im, ax=ax)
+    cbar.set_label(label='Pressure (Psi)', labelpad=15, size=12) # 'size' can also be useful
+    plt.show()
+
+    # --- Plot 2 ---
+    fig, ax = plt.subplots(figsize=(6, 5), constrained_layout=True)
+    im = ax.imshow(Pressure_Grid_Coarse, cmap='viridis', interpolation='nearest', origin='lower', vmin=p_min, vmax=p_max)
+    ax.set_title('Upscaled Coarse Grid Pressure')
+    ax.set_xlabel('Coarse Cell X')
+    ax.set_ylabel('Coarse Cell Y')
+    cbar = fig.colorbar(im, ax=ax)
+    cbar.set_label(label='Pressure (Psi)', labelpad=15, size=12) # 'size' can also be useful
+    plt.show()
+
+    # --- Plot 3 ---
+    fig, ax = plt.subplots(figsize=(6, 5), constrained_layout=True)
+    im = ax.imshow(error_map, cmap='coolwarm', interpolation='nearest', origin='lower')
+    ax.set_title('Error Map (Relative Percent Difference)')
+    ax.set_xlabel('Coarse Cell X')
+    ax.set_ylabel('Coarse Cell Y')
+    cbar = fig.colorbar(im, ax=ax)
+    cbar.set_label('Pressure Difference (%)', labelpad=15, size=12) # 'size' can also be useful
     plt.show()
 
 
@@ -271,22 +264,25 @@ def perm_field_plot(perm_field):
     perm_x_field = perm_field['x'].reshape(Grid.NY_total, Grid.NX_total)
     perm_y_field = perm_field['y'].reshape(Grid.NY_total, Grid.NX_total)
 
-    fig, axes = plt.subplots(1, 2, figsize=(18, 6))
-
     k_min = min(perm_x_field.min(), perm_y_field.min())
     k_max = max(perm_x_field.max(), perm_y_field.max())
 
-    ax1 = axes[0]
-    im1 = ax1.imshow(perm_x_field, cmap='tab20b', interpolation='nearest', origin='lower', vmin=k_min, vmax=k_max)
-    ax1.set_title('X Permeability Values')
-    fig.colorbar(im1, ax=ax1, fraction=0.046, pad=0.04)
+    fig, ax = plt.subplots(figsize=(6, 5), constrained_layout=True)
+    im = ax.imshow(perm_x_field, cmap='tab20b', interpolation='nearest', origin='lower', vmin=k_min, vmax=k_max)
+    ax.set_title('Permeability Field in X Direction')
+    ax.set_xlabel('Cell X')
+    ax.set_ylabel('Cell Y')
+    cbar = fig.colorbar(im, ax=ax)
+    cbar.set_label(label='Permeability (mD)', labelpad=15, size=12) # 'size' can also be useful
+    plt.show()
 
-    ax2 = axes[1]
-    im2 = ax2.imshow(perm_y_field, cmap='tab20b', interpolation='nearest', origin='lower', vmin=k_min, vmax=k_max)
-    ax2.set_title('Y Permeability Values')
-    fig.colorbar(im2, ax=ax2, fraction=0.046, pad=0.04)
-    
-    plt.tight_layout()
+    fig, ax = plt.subplots(figsize=(6, 5), constrained_layout=True)
+    im = ax.imshow(perm_y_field, cmap='tab20b', interpolation='nearest', origin='lower', vmin=k_min, vmax=k_max)
+    ax.set_title('Permeability Field in Y Direction')
+    ax.set_xlabel('Cell X')
+    ax.set_ylabel('Cell Y')
+    cbar = fig.colorbar(im, ax=ax)
+    cbar.set_label(label='Permeability (mD)', labelpad=15, size=12) # 'size' can also be useful
     plt.show()
     
 
@@ -303,4 +299,32 @@ def porosity_field_plot(porosity_field):
     plt.colorbar(label = 'Porosity' )
     plt.title('Reservior Porosity Map')
     plt.tight_layout()
+    plt.show()
+
+
+def bhp_pressure_plots(WBHP_vals_fine, WBHP_vals_Coarse):
+
+    # Creates plot for pressure at bottom of well(s)
+    for w in Grid.WELLS.keys(): # Creates plot for each well pressure
+        if Grid.WELLS[w]['type'] == 'injector':
+            plt.figure() 
+            plt.plot(np.arange(Simulation.number_of_steps), WBHP_vals_fine[w], label='Fine Grid Simulation')
+            plt.plot(np.arange(Simulation.number_of_steps), WBHP_vals_Coarse[w], label=f'Coarse Grid Simulation')
+            plt.xlabel("Time (days)")
+            plt.ylabel("Well Bottom-Hole Pressure (psi)")
+            plt.title(f"Change in Well Bottom-Hole Pressure Over Time for {w}")
+            plt.legend()
+            plt.grid()
+            plt.show()
+
+def producer_rate_plot(producer_rate_fine, producer_rate_coarse):
+
+    plt.figure() 
+    plt.plot(np.arange(Simulation.number_of_steps), producer_rate_fine, label='Fine Grid Simulation')
+    plt.plot(np.arange(Simulation.number_of_steps), producer_rate_coarse, label='Coarse Grid Simulation')
+    plt.xlabel("Time (days)")
+    plt.ylabel("Well Production Rate (STB/day)")
+    plt.title('Chnage in Well Production Rate')
+    plt.legend()
+    plt.grid()
     plt.show()

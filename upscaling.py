@@ -178,6 +178,8 @@ def upscaled_porosity_field(coarse_map, porosity_field):
 
 def solve_local_problems(coarse_grid_map, coarse_connections_x, coarse_connections_y, delta_vals, perm_field):
 
+    coarse_transmissibility = {}
+
     # jobs = []
 
     # for center_cell, x_neighbors_list in coarse_connections_x.items():
@@ -191,8 +193,6 @@ def solve_local_problems(coarse_grid_map, coarse_connections_x, coarse_connectio
     #         if center_cell < neighbor:
     #             args = (coarse_grid_map, center_cell, neighbor, delta_vals, 'y', perm_field)
     #             jobs.append(args)
-
-    coarse_transmissibility = {}
 
     # with concurrent.futures.ProcessPoolExecutor() as executor:
 

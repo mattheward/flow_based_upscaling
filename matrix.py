@@ -46,119 +46,168 @@ def grid_permeability():
 
     # # Generate Perm Field
 
-    # perm_x_field = np.full((Grid.NX_total, Grid.NY_total), Rock.k_high)
+    if Simulation.SIM_CASE == 'A':
 
-    # mid_point = Grid.NY_total // 2
+        perm_x_field = np.full((Grid.NX_total, Grid.NY_total), Rock.k_x)
+        perm_y_field = np.full((Grid.NX_total, Grid.NY_total), Rock.k_y)
 
-    # perm_x_field[mid_point:, :] = Rock.k_low
+    elif Simulation.SIM_CASE == 'B':
+            
+        # Read file
+        perm_x_field = []
+        file_name_x = Rock.K_Y_FILE
 
-    # perm_y_field = perm_x_field * Rock.k_xy_ratio
+        try:
+            with open(file_name_x, 'r') as f:
+                for line in f:
+                    try:
+                        num = float(line.strip())
+                        perm_x_field.append(num)
+                    except ValueError:
+                        pass
 
+        except FileNotFoundError:
+            print(f"Error: The file '{file_name_x}' was not found.")
+        except Exception as e:
+            print(f"An unexpected error occurred: {e}")
 
-    # Keep Perm isentropic
+        perm_x_field = np.array(perm_x_field)
 
-    # perm_x_field = np.full((Grid.NX_total, Grid.NY_total), Rock.k_x)
-    # perm_y_field = np.full((Grid.NX_total, Grid.NY_total), Rock.k_y)
+        if Grid.NX_total == 100:
+            perm_x_grid = perm_x_field.reshape(50, 50)
 
+            epsilon = 1e-10
 
-    # Read file
+            log_perm_grid_50x50 = np.log10(perm_x_grid + epsilon)
+            log_perm_grid_100x100 = zoom(log_perm_grid_50x50, zoom=2.0, order=3)
+            perm_x_field = 10**log_perm_grid_100x100
 
-    perm_x_field = []
-    file_name_x = Rock.K_Y_FILE
+        perm_y_field = []
+        file_name_y = Rock.K_Y_FILE
 
-    try:
-        with open(file_name_x, 'r') as f:
-            for line in f:
-                try:
-                    num = float(line.strip())
-                    perm_x_field.append(num)
-                except ValueError:
-                    pass
+        try:
+            with open(file_name_y, 'r') as f:
+                for line in f:
+                    try:
+                        num = float(line.strip())
+                        perm_y_field.append(num * 1.4)
+                    except ValueError:
+                        pass
 
-    except FileNotFoundError:
-        print(f"Error: The file '{file_name_x}' was not found.")
-    except Exception as e:
-        print(f"An unexpected error occurred: {e}")
-
-    perm_x_field = np.array(perm_x_field)
-
-    if Grid.NX_total == 100:
-        perm_x_grid = perm_x_field.reshape(50, 50)
-
-        epsilon = 1e-10
-
-        log_perm_grid_50x50 = np.log10(perm_x_grid + epsilon)
-        log_perm_grid_100x100 = zoom(log_perm_grid_50x50, zoom=2.0, order=3)
-        perm_x_field = 10**log_perm_grid_100x100
-
-
-    perm_y_field = []
-    file_name_y = Rock.K_Y_FILE
-
-    try:
-        with open(file_name_y, 'r') as f:
-            for line in f:
-                try:
-                    num = float(line.strip())
-                    perm_y_field.append(num * 1.4)
-                except ValueError:
-                    pass
-
-    except FileNotFoundError:
-        print(f"Error: The file '{file_name_y}' was not found.")
-    except Exception as e:
-        print(f"An unexpected error occurred: {e}")
+        except FileNotFoundError:
+            print(f"Error: The file '{file_name_y}' was not found.")
+        except Exception as e:
+            print(f"An unexpected error occurred: {e}")
 
     
-    perm_y_field = np.array(perm_y_field)
+        perm_y_field = np.array(perm_y_field)
 
-    if Grid.NX_total == 100:
-        perm_y_grid = perm_y_field.reshape(50, 50)
+        if Grid.NX_total == 100:
+            perm_y_grid = perm_y_field.reshape(50, 50)
 
-        epsilon = 1e-10
+            epsilon = 1e-10
 
-        log_perm_grid_50x50 = np.log10(perm_y_grid + epsilon)
-        log_perm_grid_100x100 = zoom(log_perm_grid_50x50, zoom=2.0, order=3)
-        perm_y_field = 10**log_perm_grid_100x100
+            log_perm_grid_50x50 = np.log10(perm_y_grid + epsilon)
+            log_perm_grid_100x100 = zoom(log_perm_grid_50x50, zoom=2.0, order=3)
+            perm_y_field = 10**log_perm_grid_100x100
+    elif Simulation.SIM_CASE == 'C':
+        # --- 1. Define Parameters for the Permeability Field ---
+        NX = 50
+        NY = 50
+
+        # Define layer boundaries (row indices, origin at bottom-left)
+        n_bottom = 10
+        n_middle = 30
+        # n_top is the remainder
+
+        # Define horizontal permeability (kx) properties
+        k_middle_range_x = (950, 1050)  # High perm, low heterogeneity for kx
+        k_shale_range_x = (1, 20)      # Low perm, high heterogeneity for kx
+
+        # Define ANISOTROPY RATIOS (ky/kx) for each layer
+        anisotropy_middle = 0.5  # ky will be 50% of kx in the channel
+        anisotropy_shale = 0.05  # ky will be only 5% of kx in the shale
+
+        # --- 2. Create the kx Permeability Field ---
+        perm_x_field = np.zeros((NY, NX))
+
+        # Populate kx for Bottom Layer
+        perm_x_field[0:n_bottom, :] = np.random.uniform(
+            low=k_shale_range_x[0],
+            high=k_shale_range_x[1],
+            size=(n_bottom, NX)
+        )
+
+        # Populate kx for Middle Layer
+        perm_x_field[n_bottom : n_bottom + n_middle, :] = np.random.uniform(
+            low=k_middle_range_x[0],
+            high=k_middle_range_x[1],
+            size=(n_middle, NX)
+        )
+
+        # Populate kx for Top Layer
+        perm_x_field[n_bottom + n_middle :, :] = np.random.uniform(
+            low=k_shale_range_x[0],
+            high=k_shale_range_x[1],
+            size=(NY - (n_bottom + n_middle), NX)
+        )
+
+        # --- 3. Create the ky Permeability Field from kx ---
+        perm_y_field = np.zeros((NY, NX))
+
+        # Apply anisotropy ratios layer by layer
+        perm_y_field[0:n_bottom, :] = perm_x_field[0:n_bottom, :] * anisotropy_shale
+        perm_y_field[n_bottom : n_bottom + n_middle, :] = perm_x_field[n_bottom : n_bottom + n_middle, :] * anisotropy_middle
+        perm_y_field[n_bottom + n_middle :, :] = perm_x_field[n_bottom + n_middle :, :] * anisotropy_shale
+
+    else:
+        raise ValueError('Inproper case given. Please choose "A", "B", or "C".')
+
+
+
 
 
     perm_field['x'] = perm_x_field.ravel()
     perm_field['y'] = perm_y_field.ravel()
-
-   
 
     return perm_field # Returns 1D arrays of permeability values
 
 
 def grid_porosity():
 
-    porosity_field = []
-    file_name = Rock.POROSITY_FILE
+    if Simulation.SIM_CASE == 'A':
 
-    try:
-        with open(file_name, 'r') as f:
-            for line in f:
-                try:
-                    num = float(line.strip())
-                    porosity_field.append(num)
-                except ValueError:
-                    pass
+        porosity_field = np.full((Grid.NX_total, Grid.NY_total), Rock.porosity)
 
-    except FileNotFoundError:
-        print(f"Error: The file '{file_name}' was not found.")
-    except Exception as e:
-        print(f"An unexpected error occurred: {e}")
+    elif Simulation.SIM_CASE == 'B' or Simulation.SIM_CASE == 'C':
 
-    porosity_field = np.array(porosity_field)
+        porosity_field = []
+        file_name = Rock.POROSITY_FILE
 
-    if Grid.NX_total == 100:
-        porosity_grid = porosity_field.reshape(50, 50)
+        try:
+            with open(file_name, 'r') as f:
+                for line in f:
+                    try:
+                        num = float(line.strip())
+                        porosity_field.append(num)
+                    except ValueError:
+                        pass
 
-        epsilon = 1e-10
+        except FileNotFoundError:
+            print(f"Error: The file '{file_name}' was not found.")
+        except Exception as e:
+            print(f"An unexpected error occurred: {e}")
 
-        log_porosity_grid_50x50 = np.log10(porosity_grid + epsilon)
-        log_porosity_grid_100x100 = zoom(log_porosity_grid_50x50, zoom=2.0, order=3)
-        porosity_field = 10**log_porosity_grid_100x100
+        porosity_field = np.array(porosity_field)
+
+        if Grid.NX_total == 100:
+            porosity_grid = porosity_field.reshape(50, 50)
+
+            epsilon = 1e-10
+
+            log_porosity_grid_50x50 = np.log10(porosity_grid + epsilon)
+            log_porosity_grid_100x100 = zoom(log_porosity_grid_50x50, zoom=2.0, order=3)
+            porosity_field = 10**log_porosity_grid_100x100
 
     return porosity_field.ravel()
 
@@ -238,6 +287,9 @@ def well_treatment(well_index, a_matrix, b_vector, delta_values, perm_field, cur
     Note: `a_matrix` may be CSR on entry; convert to LIL for efficient assignment,
     then return CSR for the solver.
     """
+
+    producer_WI = 0
+
     # Convert matrix to LIL for efficient element/row assignment
     try:
         a_matrix = a_matrix.tolil()
@@ -268,10 +320,10 @@ def well_treatment(well_index, a_matrix, b_vector, delta_values, perm_field, cur
             b_vector[well_index[w] - 1] -= Grid.WELLS[w]['rates'][rate_index]  # [STB/day]
 
         elif Grid.WELLS[w]['type'] == 'producer':
-            well_transmissibility = Calc.well_transmissibility(delta_values, perm_field, well_index[w])
-            b_vector[well_index[w] - 1] -= well_transmissibility * Grid.BHP
+            producer_WI = Calc.well_transmissibility(delta_values, perm_field, well_index[w])
+            b_vector[well_index[w] - 1] -= producer_WI * Grid.BHP
             # LIL supports item assignment
-            a_matrix[well_index[w] - 1, well_index[w] - 1] -= well_transmissibility
+            a_matrix[well_index[w] - 1, well_index[w] - 1] -= producer_WI
 
     # Convert back to CSR for efficient solves
     try:
@@ -279,4 +331,4 @@ def well_treatment(well_index, a_matrix, b_vector, delta_values, perm_field, cur
     except Exception:
         pass
 
-    return a_matrix, b_vector
+    return a_matrix, b_vector, producer_WI

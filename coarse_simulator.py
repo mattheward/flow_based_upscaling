@@ -19,9 +19,9 @@ from config import Field, Grid, Simulation, Upscaling
 import connections as Con
 import calculations as Calc
 
-def Total_Coarse_Cells_2D():
+def Total_Coarse_Cells_2D(num_merged_cells):
 
-    return Upscaling.NCx * Upscaling.NCy - 1 # [cells]
+    return Upscaling.NCx * Upscaling.NCy - num_merged_cells # [cells]
 
 def Delta_Coarse_Values():
 
