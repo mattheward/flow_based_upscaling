@@ -268,7 +268,7 @@ def perm_field_plot(perm_field):
     k_max = max(perm_x_field.max(), perm_y_field.max())
 
     fig, ax = plt.subplots(figsize=(6, 5), constrained_layout=True)
-    im = ax.imshow(perm_x_field, cmap='tab20b', interpolation='nearest', origin='lower', vmin=k_min, vmax=k_max)
+    im = ax.imshow(perm_x_field, cmap='hot', interpolation='nearest', origin='lower', vmin=k_min, vmax=k_max)
     ax.set_title('Permeability Field in X Direction')
     ax.set_xlabel('Cell X')
     ax.set_ylabel('Cell Y')
@@ -277,7 +277,7 @@ def perm_field_plot(perm_field):
     plt.show()
 
     fig, ax = plt.subplots(figsize=(6, 5), constrained_layout=True)
-    im = ax.imshow(perm_y_field, cmap='tab20b', interpolation='nearest', origin='lower', vmin=k_min, vmax=k_max)
+    im = ax.imshow(perm_y_field, cmap='hot', interpolation='nearest', origin='lower', vmin=k_min, vmax=k_max)
     ax.set_title('Permeability Field in Y Direction')
     ax.set_xlabel('Cell X')
     ax.set_ylabel('Cell Y')
@@ -324,7 +324,7 @@ def producer_rate_plot(producer_rate_fine, producer_rate_coarse):
     plt.plot(np.arange(Simulation.number_of_steps), producer_rate_coarse, label='Coarse Grid Simulation')
     plt.xlabel("Time (days)")
     plt.ylabel("Well Production Rate (STB/day)")
-    plt.title('Chnage in Well Production Rate')
+    plt.title('Change in Well Production Rate')
     plt.legend()
     plt.grid()
     plt.show()

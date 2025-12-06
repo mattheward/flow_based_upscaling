@@ -55,25 +55,17 @@ class Grid: # Simulation grid properties
     WELLS = {
         'well1': {
             'type': 'injector',
-            'location': [23, 41],
-            'control': 'rate',
-            'rates': [900]  # [STB/day]
-        },
-        'well2': {
-            'type': 'injector',
-            'location': [14, 23],
+            'location': [13, 28],
             'control': 'rate',
             'rates': [1400]  # [STB/day]
         },
         'well3': {
             'type': 'producer',
-            'location': [43, 23],
+            'location': [38, 28],
             'control': 'bhp',
             'bhp': 2000  # [STB/day]
         }
     }
-
-
 
 
     BHP = 2000
@@ -97,10 +89,10 @@ class Simulation: # Simulation perameters
     stop_injection = False # Set to 'True' if you want the injection to stop
     stop_time = 400 # [days] (Set day when injection stops)
     RATE_SCHEDULE = [0] # Can add a rate schedule as a list if wanted (overrides stop_injection and stop_time)
-    SIM_CASE = 'B'
+    SIM_CASE = 'C'
 
 class Upscaling: # Upscaling parameters
 
     NCy = 10
     NCx = 10
-    GRID_TYPE = 'structured'
+    GRID_TYPE = 'unstructured'

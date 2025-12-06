@@ -64,19 +64,56 @@ def create_structured_grid():
 
 def created_unstructured_grid(structured_map):
 
-    total_coarse_cells = Upscaling.NCy * Upscaling.NCx
-    merged_cells = structured_map[1] + structured_map[2]
-    num_merged_cells = 1
+    merge_plan = {
+        41: 101, 51: 101, 61: 101,
+        42: 102, 52: 102, 62: 102,
+        43: 103, 53: 103, 63: 103,
+        44: 104, 54: 104, 64: 104,
+        45: 105, 55: 105, 65: 105,
+        46: 106, 56: 106, 66: 106,
+        47: 107, 57: 107, 67: 107,
+        48: 108, 58: 108, 68: 108,
+        49: 109, 59: 109, 69: 109,
+        50: 110, 60: 110, 70: 110, # Corrected your (50, 60, 60) bug
+    }
+    
+    # --- Step 2: Create a temporary map with the merged blocks ---
+    temp_grid_map = {}
+    
+    # First, add the new merged blocks
+    for temp_id in set(merge_plan.values()): # Loop through unique new IDs (101, 102...)
+        temp_grid_map[temp_id] = []
+        
+    for old_id, temp_id in merge_plan.items():
+        temp_grid_map[temp_id].extend(structured_map[old_id])
 
-    unstructured_grid = {}
+    # Next, add all the original blocks that were NOT part of any merge
+    for old_id, fine_cells in structured_map.items():
+        if old_id not in merge_plan:
+            temp_grid_map[old_id] = fine_cells
+            
+    # At this point, temp_grid_map has 80 entries:
+    # Keys 1-40, 71-100, and 101-110. They are not sequential.
 
-    unstructured_grid[1] = merged_cells
+    # --- Step 3: Re-index everything into a final, clean map ---
+    
+    # Get all the keys from the temporary map and sort them numerically
+    sorted_old_keys = sorted(temp_grid_map.keys())
+    
+    final_unstructured_map = {}
+    new_sequential_id = 1 # Start our new IDs from 1
+    
+    for old_key in sorted_old_keys:
+        # Assign the fine cell list to the new sequential ID
+        final_unstructured_map[new_sequential_id] = temp_grid_map[old_key]
+        new_sequential_id += 1
+        
+    # The final map will have keys 1, 2, ..., 80, in perfect numerical order.
+    
+    # Calculate the number of merged cells for your return value if needed
+    num_merged = len(structured_map) - len(final_unstructured_map)
 
-    for i in range(2, total_coarse_cells):
-
-        unstructured_grid[i] = structured_map[i + 1]
-
-    return unstructured_grid, num_merged_cells
+    return final_unstructured_map, num_merged
 
 
 def create_coarse_grid():

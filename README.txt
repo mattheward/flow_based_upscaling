@@ -44,3 +44,25 @@ Stop Injection Case
     well_rate = np.array([1352])
     stop_injection = True
     stop_time = 400
+
+
+   WELLS = {
+        'well1': {
+            'type': 'injector',
+            'location': [23, 41],
+            'control': 'rate',
+            'rates': [900]  # [STB/day]
+        },
+        'well2': {
+            'type': 'injector',
+            'location': [14, 23],
+            'control': 'rate',
+            'rates': [1400]  # [STB/day]
+        },
+        'well3': {
+            'type': 'producer',
+            'location': [43, 23],
+            'control': 'bhp',
+            'bhp': 2000  # [STB/day]
+        }
+    }

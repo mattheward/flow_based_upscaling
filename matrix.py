@@ -48,8 +48,8 @@ def grid_permeability():
 
     if Simulation.SIM_CASE == 'A':
 
-        perm_x_field = np.full((Grid.NX_total, Grid.NY_total), Rock.k_x)
-        perm_y_field = np.full((Grid.NX_total, Grid.NY_total), Rock.k_y)
+        perm_x_field = np.full((Grid.NX_total, Grid.NY_total), Rock.k_x).ravel()
+        perm_y_field = np.full((Grid.NX_total, Grid.NY_total), Rock.k_y).ravel()
 
     elif Simulation.SIM_CASE == 'B':
             
@@ -110,65 +110,18 @@ def grid_permeability():
             log_perm_grid_50x50 = np.log10(perm_y_grid + epsilon)
             log_perm_grid_100x100 = zoom(log_perm_grid_50x50, zoom=2.0, order=3)
             perm_y_field = 10**log_perm_grid_100x100
+
+        perm_x_field = perm_x_field.ravel()
+        perm_y_field = perm_y_field.ravel()
+
     elif Simulation.SIM_CASE == 'C':
-        # --- 1. Define Parameters for the Permeability Field ---
-        NX = 50
-        NY = 50
-
-        # Define layer boundaries (row indices, origin at bottom-left)
-        n_bottom = 10
-        n_middle = 30
-        # n_top is the remainder
-
-        # Define horizontal permeability (kx) properties
-        k_middle_range_x = (950, 1050)  # High perm, low heterogeneity for kx
-        k_shale_range_x = (1, 20)      # Low perm, high heterogeneity for kx
-
-        # Define ANISOTROPY RATIOS (ky/kx) for each layer
-        anisotropy_middle = 0.5  # ky will be 50% of kx in the channel
-        anisotropy_shale = 0.05  # ky will be only 5% of kx in the shale
-
-        # --- 2. Create the kx Permeability Field ---
-        perm_x_field = np.zeros((NY, NX))
-
-        # Populate kx for Bottom Layer
-        perm_x_field[0:n_bottom, :] = np.random.uniform(
-            low=k_shale_range_x[0],
-            high=k_shale_range_x[1],
-            size=(n_bottom, NX)
-        )
-
-        # Populate kx for Middle Layer
-        perm_x_field[n_bottom : n_bottom + n_middle, :] = np.random.uniform(
-            low=k_middle_range_x[0],
-            high=k_middle_range_x[1],
-            size=(n_middle, NX)
-        )
-
-        # Populate kx for Top Layer
-        perm_x_field[n_bottom + n_middle :, :] = np.random.uniform(
-            low=k_shale_range_x[0],
-            high=k_shale_range_x[1],
-            size=(NY - (n_bottom + n_middle), NX)
-        )
-
-        # --- 3. Create the ky Permeability Field from kx ---
-        perm_y_field = np.zeros((NY, NX))
-
-        # Apply anisotropy ratios layer by layer
-        perm_y_field[0:n_bottom, :] = perm_x_field[0:n_bottom, :] * anisotropy_shale
-        perm_y_field[n_bottom : n_bottom + n_middle, :] = perm_x_field[n_bottom : n_bottom + n_middle, :] * anisotropy_middle
-        perm_y_field[n_bottom + n_middle :, :] = perm_x_field[n_bottom + n_middle :, :] * anisotropy_shale
-
+        perm_x_field = np.loadtxt('kx_values.txt')
+        perm_y_field = np.loadtxt('ky_values.txt')
     else:
         raise ValueError('Inproper case given. Please choose "A", "B", or "C".')
 
-
-
-
-
-    perm_field['x'] = perm_x_field.ravel()
-    perm_field['y'] = perm_y_field.ravel()
+    perm_field['x'] = perm_x_field
+    perm_field['y'] = perm_y_field
 
     return perm_field # Returns 1D arrays of permeability values
 
