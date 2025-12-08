@@ -1,11 +1,13 @@
 '''
 Matthew Ard 
-Energy 223 - Phase II
-04/25/2025
+Energy 224 - Phase Flow Based Upscaling
+12/05/2025
 
 ==========
 This is the main file where the user will run the code after inputing the parameters. This code initializes the program, runs
 the simulation (finding pressure at each time step), plots/prints the results, and times the execution.
+
+Both fine-scale and upscaled simulations are run.
 ==========
 '''
 
@@ -125,7 +127,12 @@ def main():
 
     start_time2 = time.time()
 
-    # ========== Coarse Simulator ==========
+
+
+
+    '''
+    ========== Coarse Simulator ==========
+    '''
 
     coarse_map, num_merged_cells = Up.create_coarse_grid()
     num_coarse_cells = Cs.Total_Coarse_Cells_2D(num_merged_cells)
@@ -164,8 +171,7 @@ def main():
             WBHP_vals_Coarse[w].append(back_calculated_BHP)
 
         elif Grid.WELLS[w]['type'] == 'producer':
-            # For a pressure-controlled producer, we calculate the rate using the results.
-            # This is the correct formula: q = WI * (p_block - p_bhp)
+
             well_rate = WI * (p_block_avg - Grid.BHP)
             producer_rate_coarse.append(well_rate)
         
@@ -197,8 +203,6 @@ def main():
                 WBHP_vals_Coarse[w].append(back_calculated_BHP)
 
             elif Grid.WELLS[w]['type'] == 'producer':
-                # For a pressure-controlled producer, we calculate the rate using the results.
-                # This is the correct formula: q = WI * (p_block - p_bhp)
                 well_rate = WI * (p_block_avg - Grid.BHP)
                 producer_rate_coarse.append(well_rate)
 

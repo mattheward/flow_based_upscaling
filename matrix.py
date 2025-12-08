@@ -1,7 +1,7 @@
 '''
 Matthew Ard 
 Energy 223 - Phase II
-04/25/2025
+12/05/2025
 
 ==========
 This file is to create all the matrices (A, p, and b)
@@ -19,19 +19,6 @@ import calculations as Calc
 import connections as Con
 
 
-# Initialize flow rate vector (which goes inside of b vector)
-# def Initilalize_Q_Vectors(total_cells, well_location, stop_injection):
-
-#     # Initialize the source vector
-#     q = np.zeros(total_cells, dtype=float) # 1D vector [STB/day]
-
-#     if not stop_injection:
-#         for w in range(len(Grid.well_x)):
-#             q[well_location[w]-1] = Grid.well_rate[w] # [STB/day]
-
-#     return q
-
-
 # Initalizes P vector
 def Initalize_P_Vector(total_cells):
 
@@ -44,7 +31,6 @@ def grid_permeability():
 
     perm_field = {}
 
-    # # Generate Perm Field
 
     if Simulation.SIM_CASE == 'A':
 
@@ -53,7 +39,6 @@ def grid_permeability():
 
     elif Simulation.SIM_CASE == 'B':
             
-        # Read file
         perm_x_field = []
         file_name_x = Rock.K_Y_FILE
 
@@ -165,18 +150,14 @@ def grid_porosity():
     return porosity_field.ravel()
 
 
-# Creates b vector (RHS) 
 def RHS_Vector(accumulation, p):
-    # p and q are 1D arrays; return 1D RHS
     return -(accumulation * p)
 
 
-# Gets transmissibility values needed for A matrix of nondiagonal values
 def Get_Transmissibility_Values(a_matrix, i, p_n_vector, cell_number, direction, b_star, t_values, delta_vals, perm_field):
 
     if cell_number != 0: # Only runs for cell references numbers that aren't zero
 
-        # Finds formation volume factor
         b1 = Calc.B_Calc(p_n_vector[cell_number - 1])
         b_int = Calc.B_Interface_Calc(b1, b_star)
 
@@ -184,7 +165,6 @@ def Get_Transmissibility_Values(a_matrix, i, p_n_vector, cell_number, direction,
         k2 = perm_field[direction][cell_number - 1]
         k_int = Calc.permeability_average(k1, k2)
 
-        # Finds transmissibility for each direction
         if direction == 'x':
             transmissibility = Calc.Transmissibility_Calc(delta_vals, direction, k_int, b_int)
         else:
@@ -194,9 +174,7 @@ def Get_Transmissibility_Values(a_matrix, i, p_n_vector, cell_number, direction,
         a_matrix[i - 1, cell_number-1] = transmissibility # Puts transmissibility value in A matrix (works for LIL)
 
 
-# Create A Matrix
 def Form_A_Matrix(connections_x, connections_y, p_n_vector, total_cells, accumulation, delta_vals, perm_field):
-    # Use sparse LIL matrix for fast construction
     a_matrix = sp.lil_matrix((total_cells, total_cells), dtype=float)
 
     for center_cell in range(1, total_cells + 1): # loop through each cell
@@ -210,16 +188,13 @@ def Form_A_Matrix(connections_x, connections_y, p_n_vector, total_cells, accumul
         neighbor_y1 = connections_y[center_cell - 1, 1]
         neighbor_y2 = connections_y[center_cell - 1, 2]
 
-        # process up to two x-neighbors and two y-neighbors
         Get_Transmissibility_Values(a_matrix, center_cell, p_n_vector, neighbor_x1, 'x', b_star, t_values, delta_vals, perm_field)
         Get_Transmissibility_Values(a_matrix, center_cell, p_n_vector, neighbor_x2, 'x', b_star, t_values, delta_vals, perm_field)
         Get_Transmissibility_Values(a_matrix, center_cell, p_n_vector, neighbor_y1, 'y', b_star, t_values, delta_vals, perm_field)
         Get_Transmissibility_Values(a_matrix, center_cell, p_n_vector, neighbor_y2, 'y', b_star, t_values, delta_vals, perm_field)
 
-        # Calculate diagonal value and set it
         a_matrix[center_cell - 1, center_cell - 1] = -(sum(t_values) + accumulation[center_cell -1])
 
-    # Apply constant boundary condition efficiently on sparse LIL
     if Grid.Boundary_Condition == 1:
         
         reservior = Con.Initialize_Arrays()[0]
@@ -243,20 +218,13 @@ def well_treatment(well_index, a_matrix, b_vector, delta_values, perm_field, cur
 
     producer_WI = 0
 
-    # Convert matrix to LIL for efficient element/row assignment
     try:
         a_matrix = a_matrix.tolil()
     except Exception:
-        # If a_matrix is already a dense ndarray or similar, leave it
         pass
 
     if current_time in Simulation.RATE_SCHEDULE:
         print(' =============== Rate Update =============== ')
-
-    # for w in Grid.WELLS:
-    #     well_id = well_index[w]
-
-    #     b_vector[well_id - 1] -= Grid.WELLS[w]['rates'][0]
 
     for w in Grid.WELLS:
         if Grid.WELLS[w]['type'] == 'injector':
@@ -275,10 +243,8 @@ def well_treatment(well_index, a_matrix, b_vector, delta_values, perm_field, cur
         elif Grid.WELLS[w]['type'] == 'producer':
             producer_WI = Calc.well_transmissibility(delta_values, perm_field, well_index[w])
             b_vector[well_index[w] - 1] -= producer_WI * Grid.BHP
-            # LIL supports item assignment
             a_matrix[well_index[w] - 1, well_index[w] - 1] -= producer_WI
 
-    # Convert back to CSR for efficient solves
     try:
         a_matrix = a_matrix.tocsr()
     except Exception:

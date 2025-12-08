@@ -7,44 +7,27 @@ To run this code you only need to use 'config.py' and 'main.py'.
 To change the parameters you will use 'config.py'
 To run the simulation and see the results you will use 'main.py'
 
-Base Case
+Use the following settings for each case.
 
-    To run the base case adjust these settings
-    Boundary Condition = 0
-    well_x = np.array([20])
-    well_y = np.array([20])
-    well_rate = np.array([1352])
-    stop_injection = False
+Case A:
 
-Constant Pressure Case
+Simulation.SIM_CASE = 'A'
+Upscaling.GRID_TYPE = 'structured'
 
-    To run the constant pressure case adjust these settings
-    P_boundary = P_init
-    Boundary Condition = 1
-    well_x = np.array([20])
-    well_y = np.array([20])
-    well_rate = np.array([1352])
-    stop_injection = False
+   WELLS = {
+        'well1': {
+            'type': 'injector',
+            'location': [30, 30],
+            'control': 'rate',
+            'rates': [900]  # [STB/day]
+        }
+    }
 
-Two Injection Well Case
 
-    To run the two injection well case adjust these settings
-    Boundary Condition = 1
-    well_x = np.array([13, 26])
-    well_y = np.array([13, 26])
-    well_rate = np.array([1352, 1352])
-    stop_injection = False
+Case B:
 
-Stop Injection Case
-
-    To run the two injection well case adjust these settings
-    Boundary Condition = 0
-    well_x = np.array([20])
-    well_y = np.array([20])
-    well_rate = np.array([1352])
-    stop_injection = True
-    stop_time = 400
-
+Simulation.SIM_CASE = 'B'
+Upscaling.GRID_TYPE = 'structured'
 
    WELLS = {
         'well1': {
@@ -62,6 +45,27 @@ Stop Injection Case
         'well3': {
             'type': 'producer',
             'location': [43, 23],
+            'control': 'bhp',
+            'bhp': 2000  # [STB/day]
+        }
+    }
+
+
+Case C:
+
+Simulation.SIM_CASE = 'C'
+Upscaling.GRID_TYPE = 'structured'
+
+    WELLS = {
+        'well1': {
+            'type': 'injector',
+            'location': [13, 28],
+            'control': 'rate',
+            'rates': [1400]  # [STB/day]
+        },
+        'well3': {
+            'type': 'producer',
+            'location': [38, 28],
             'control': 'bhp',
             'bhp': 2000  # [STB/day]
         }

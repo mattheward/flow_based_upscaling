@@ -217,6 +217,10 @@ def solve_local_problems(coarse_grid_map, coarse_connections_x, coarse_connectio
 
     coarse_transmissibility = {}
 
+    '''
+    Logic for parallel computation. Not necessary for small grid.
+    '''
+
     # jobs = []
 
     # for center_cell, x_neighbors_list in coarse_connections_x.items():
@@ -244,10 +248,8 @@ def solve_local_problems(coarse_grid_map, coarse_connections_x, coarse_connectio
     for center_cell, x_neighbors_list in coarse_connections_x.items():
         # Loop through the neighbors that were found for this cell
         for neighbor in x_neighbors_list:
-            
-            # --- FIX 2: Prevent double-counting ---
-            # We only calculate the transmissibility for a pair (i, j) if i < j.
-            # This ensures each pair is processed only once.
+
+
             if center_cell < neighbor:
                 
                 T_x_upscaled = upscaled_transmissibility(coarse_grid_map, center_cell, neighbor, delta_vals, 'x', perm_field)
@@ -285,7 +287,6 @@ def upscaled_transmissibility(coarse_grid_map, coarse_cell_i, coarse_cell_j, del
 
     global_to_local_map = {global_id: local_id for local_id, global_id in enumerate(local_domain)}
     num_local_cells = len(local_domain)
-    # print(f"Isolated {num_local_cells} fine cells for this local problem.")
 
     A_local = np.zeros((num_local_cells, num_local_cells))
     b_local = np.zeros(num_local_cells)
@@ -402,9 +403,6 @@ def upscaled_transmissibility(coarse_grid_map, coarse_cell_i, coarse_cell_j, del
 
     T_upscaled = Q_total / delta_p_avg
 
-    # print(f"  -> Avg P_I={p_avg_i:.4f}, Avg P_J={p_avg_i:.4f}, Q_total={Q_total:.4f}")
-    # print(f"  -> Upscaled T* = {T_upscaled:.4f}")
-
     return T_upscaled
 
 
@@ -418,31 +416,24 @@ def upscaled_rate_well_transmissibility(coarse_grid_map, well_index_coarse, well
 
     for global_id in core_domain:
         
-        # First, convert the global ID to its (i, j) coordinates
         i = global_id % Nx
         j = global_id // Nx
         
-        # Now, check for neighbors using the coordinates to prevent wraparound
-        
-        # Right neighbor: Only exists if we are not on the far-right edge
         if i + 1 < Nx:
             neighbor_id = global_id + 1
             if neighbor_id not in core_domain: 
                 buffer_ring.add(neighbor_id)
             
-        # Left neighbor: Only exists if we are not on the far-left edge
         if i - 1 >= 0:
             neighbor_id = global_id - 1
             if neighbor_id not in core_domain: 
                 buffer_ring.add(neighbor_id)
             
-        # Top neighbor: Only exists if we are not on the top edge
         if j + 1 < Ny:
             neighbor_id = global_id + Nx
             if neighbor_id not in core_domain: 
                 buffer_ring.add(neighbor_id)
 
-        # Bottom neighbor: Only exists if we are not on the bottom edge
         if j - 1 >= 0:
             neighbor_id = global_id - Nx
             if neighbor_id not in core_domain: 
@@ -521,7 +512,6 @@ def upscaled_rate_well_transmissibility(coarse_grid_map, well_index_coarse, well
 
     b_local[local_well_idx] += well_rate
 
-    # Enforce Dirichlet P=0 on outer boundary using row replacement (robust)
     for local_idx, global_id in enumerate(padding_domain):
 
         is_outer_boundary = False
@@ -531,11 +521,10 @@ def upscaled_rate_well_transmissibility(coarse_grid_map, well_index_coarse, well
         if (global_id - Grid.NX_total) not in global_to_local_map: is_outer_boundary = True
 
         if is_outer_boundary:
-            # Do not overwrite the well row if the well happens to lie on the
-            # physical/padded outer boundary; keep the source term in place.
+
             if local_idx == local_well_idx:
                 continue
-            # set row to enforce p = 0.0
+
             A_local[local_idx, :] = 0.0
             A_local[local_idx, local_idx] = 1.0
             b_local[local_idx] = 0.0
@@ -543,7 +532,6 @@ def upscaled_rate_well_transmissibility(coarse_grid_map, well_index_coarse, well
     p_local = np.linalg.solve(A_local, b_local)
     
     p_well = p_local[local_well_idx]
-
 
     coarse_pressures = [p_local[global_to_local_map[gid]] for gid in core_domain]
     p_block_avg = np.mean(coarse_pressures)
@@ -632,40 +620,28 @@ def plot_padded_domain(core_domain, buffer_ring):
     """
     Nx, Ny = Grid.NX_total, Grid.NY_total
     
-    # Create a 2D array to represent the grid. We'll use different numbers
-    # to represent different regions.
-    # 0 = Rest of the reservoir
-    # 1 = Buffer Ring
-    # 2 = Core Domain
     visualization_array = np.zeros((Ny, Nx))
     
-    # Mark the buffer ring cells with the value 1
     for fine_id in buffer_ring:
         j = fine_id // Nx  # Cartesian row
         i = fine_id % Nx   # Cartesian col
         visualization_array[j, i] = 1
         
-    # Mark the core domain cells with the value 2 (this will overwrite any buffer cells if there's an error)
     for fine_id in core_domain:
         j = fine_id // Nx  # Cartesian row
         i = fine_id % Nx   # Cartesian col
         visualization_array[j, i] = 2
         
-    # --- Plotting Setup ---
     fig, ax = plt.subplots(figsize=(10, 8))
     
-    # Create a custom colormap with 3 distinct colors
     cmap = plt.cm.colors.ListedColormap(['#d3d3d3', '#6495ed', '#ff6347']) # Gray, Blue, Red
     
-    # Use origin='lower' to match your Cartesian grid convention
     mat = ax.imshow(visualization_array, cmap=cmap, interpolation='none', aspect='equal', origin='lower')
     
-    # Add grid lines for all fine cells
     ax.set_xticks(np.arange(-.5, Nx, 1), minor=True)
     ax.set_yticks(np.arange(-.5, Ny, 1), minor=True)
     ax.grid(which='both', color='white', linestyle='-', linewidth=1)
     
-    # Add labels for cell IDs
     for j in range(Ny):
         for i in range(Nx):
             ax.text(i, j, str(j * Nx + i), ha='center', va='center', color='black', fontsize=8)
@@ -674,7 +650,6 @@ def plot_padded_domain(core_domain, buffer_ring):
     ax.set_xlabel("Fine Cell Index (i)")
     ax.set_ylabel("Fine Cell Index (j)")
 
-    # Create a colorbar with custom labels
     cbar = plt.colorbar(mat, ticks=[0, 1, 2])
     cbar.ax.set_yticklabels(['Reservoir', 'Buffer Ring', 'Core Domain'])
     
@@ -687,25 +662,13 @@ def coarse_well_treamtment(upscaled_well_transmissibility, well_index_coarse_val
     Applies the upscaled well transmissibility to the coarse A matrix and b vector.
     """
 
-    # for w, WI_star in upscaled_well_transmissibility.items():
-    #     coarse_well_idx = well_index_coarse_vals[w]
-
-    #     b_vector_c[coarse_well_idx - 1] -= Grid.WELLS[w]['rates'][0]
-    
-    # Convert matrix to LIL for efficient element/row assignment
     try:
         a_matrix = a_matrix.tolil()
     except Exception:
-        # If a_matrix is already a dense ndarray or similar, leave it
         pass
 
     if current_time in Simulation.RATE_SCHEDULE:
         print(' =============== Rate Update =============== ')
-
-    # for w in Grid.WELLS:
-    #     well_id = well_index[w]
-
-    #     b_vector[well_id - 1] -= Grid.WELLS[w]['rates'][0]
 
     for w in Grid.WELLS:
         if Grid.WELLS[w]['type'] == 'injector':
@@ -723,10 +686,8 @@ def coarse_well_treamtment(upscaled_well_transmissibility, well_index_coarse_val
 
         elif Grid.WELLS[w]['type'] == 'producer':
             b_vector_c[well_index_coarse_vals[w] - 1] -= upscaled_well_transmissibility[w] * Grid.BHP
-            # LIL supports item assignment
             a_matrix_c[well_index_coarse_vals[w] - 1, well_index_coarse_vals[w] - 1] -= upscaled_well_transmissibility[w]
 
-    # Convert back to CSR for efficient solves
     try:
         a_matrix = a_matrix.tocsr()
     except Exception:
